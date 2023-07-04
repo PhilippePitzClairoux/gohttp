@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	gohttperrors "github.com/PhilippePitzClairoux/gohttp/errors"
+	goerrors "github.com/PhilippePitzClairoux/gohttp/errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -39,7 +39,7 @@ type InternalDispatcher struct {
 }
 
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	var err error = gohttperrors.NewNotFoundError("Controller not found")
+	var err error = goerrors.NewNotFoundError("Controller not found")
 
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
 	for _, endpoint := range id.Parent.Endpoints {
@@ -58,9 +58,9 @@ func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 	var statusCode int
 
-	if ise, ok := err.(gohttperrors.InternalServerError); ok {
+	if ise, ok := err.(goerrors.InternalServerError); ok {
 		statusCode = ise.StatusCode
-	} else if nfe, ok := err.(gohttperrors.NotFoundError); ok {
+	} else if nfe, ok := err.(goerrors.NotFoundError); ok {
 		statusCode = nfe.StatusCode
 	} else {
 		statusCode = http.StatusNotImplemented

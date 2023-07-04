@@ -1,4 +1,4 @@
-package gohttperrors
+package goerrors
 
 import "net/http"
 
