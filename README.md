@@ -20,19 +20,19 @@ type TestHandler struct {
 	properties map[string]string `json:"properties"`
 }
 
-func (r *TestHandler) GetMyEntity(str string, i int) TestHandler {
-    return *r
+func (r TestHandler) GetMyEntity(str string, i int) TestHandler {
+    return r
 }
 
-func (TestHandler) PostMyEntity(str string, str2 string) string {
+func (r TestHandler) PostMyEntity(str string, str2 string) string {
     return "post called!"
 }
 
-func (TestHandler) DeleteMyEntity(id int) string {
+func (r TestHandler) DeleteMyEntity(id int) string {
     return "del called!"
 }
 
-func (TestHandler) PatchMyEntity(str string, float float64) string {
+func (r TestHandler) PatchMyEntity(str string, float float64) string {
     return "patch called"
 }
 
