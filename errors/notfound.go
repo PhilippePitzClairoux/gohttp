@@ -14,6 +14,6 @@ func (nfe NotFoundError) Error() string {
 func NewNotFoundError(message string) NotFoundError {
 	return NotFoundError{
 		message:    message,
-		StatusCode: http.StatusInternalServerError,
+		StatusCode: http.StatusNotFound,
 	}
 }

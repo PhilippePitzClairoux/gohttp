@@ -16,10 +16,12 @@ Those functions MUST start with one of the supported supported http method :
 ...
 
 type TestHandler struct {
+	Name       string `json:"name"`
+	properties map[string]string `json:"properties"`
 }
 
-func (TestHandler) GetMyEntity(str string, i int) string {
-    return "get called!"
+func (r *TestHandler) GetMyEntity(str string, i int) TestHandler {
+    return *r
 }
 
 func (TestHandler) PostMyEntity(str string, str2 string) string {
@@ -66,10 +68,10 @@ wget localhost:8080/test/PARAM_STRING/32
 
 ## TODO LIST
 - Give access to request headers when calling endpoint method
-- If the output of a method is a struct, parse it to JSON (same thing for body of a HTTP call)
+- ~~If the output of a method is a struct, parse it to JSON (same thing for body of a HTTP call)~~
 - Handle various header related stuff (mostly for authentication purposes)
-- Optimize code (use more pointers instead of copying most data)
-- Reduce cognitive complexity of functions
+- ~~Optimize code (use more pointers instead of copying most data)~~
+- ~~Reduce cognitive complexity of functions~~
 - Support multi return statements and handle errors
 - multi threading ???
 - document exported methods

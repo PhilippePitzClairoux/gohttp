@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	gohttperrors "github.com/PhilippePitzClairoux/go-http-server/gohttp/errors"
+	gohttperrors "github.com/PhilippePitzClairoux/gohttp/errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -41,7 +41,7 @@ type InternalDispatcher struct {
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = gohttperrors.NewNotFoundError("Controller not found")
 
-	fmt.Println("Got a new request : ", r.RequestURI)
+	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
 	for _, endpoint := range id.Parent.Endpoints {
 		requestUri := CompileUri(r.RequestURI)
 
