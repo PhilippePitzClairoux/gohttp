@@ -75,3 +75,4 @@ wget localhost:8080/test/PARAM_STRING/32
 - Support multi return statements and handle errors
 - multi threading ???
 - document exported methods
+- optimize search for endpoint
