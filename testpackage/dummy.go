@@ -1,6 +1,9 @@
 package testpackage
 
 type TestHandler struct {
+	Name       string            `json:"Name" json:"Name,omitempty"`
+	FamilyName string            `json:"FamilyName" json:"FamilyName,omitempty"`
+	Properties map[string]string `json:"Properties" json:"Properties,omitempty"`
 }
 
 func (TestHandler) GetMyEntity(str string, i int) string {

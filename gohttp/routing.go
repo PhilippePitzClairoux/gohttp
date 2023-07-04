@@ -3,6 +3,7 @@ package gohttp
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,7 +41,6 @@ func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	var err error
 
 	fmt.Println("Got a new request : ", r.RequestURI)
-
 	for _, endpoint := range id.Parent.Endpoints {
 		requestUri := CompileUri(r.RequestURI)
 
@@ -51,8 +51,9 @@ func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 			}
 
 			// handle request body and potentially add it to the function call
+			controller := endpoint.ParseRequestPayload(r)
 			answer := endpoint.function.Func.Call(
-				append([]reflect.Value{reflect.ValueOf(endpoint.controllerRef)},
+				append([]reflect.Value{reflect.ValueOf(controller)},
 					params...,
 				),
 			)
@@ -68,14 +69,14 @@ func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 				fmt.Println("Could not write error to client : ", ok)
 			}
 
-			fmt.Println("Dispatched to endpoint : ", endpoint.name)
+			fmt.Println("Dispatched to endpoint : ", endpoint.name, "\n")
 
 			return
 		}
 	}
 
 	if err == nil {
-		err = errors.New("could not find any matching endpoint")
+		err = errors.New("could not find any matching endpoint\n")
 	}
 
 	rw.WriteHeader(http.StatusNotFound)
@@ -100,6 +101,27 @@ func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) 
 	}
 
 	return params, nil
+}
+
+func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) any {
+	t := reflect.ValueOf(hse.controllerRef)
+	body := req.Body
+	content := make([]byte, 0)
+	var err error = nil
+	var unmarshalled any
+
+	_, err = body.Read(content)
+	if err != nil {
+		// if there's an error during the parsing of the payload - return empty struct
+		fmt.Println("Could not parse body : ", err)
+		unmarshalled = hse.controllerRef
+	} else {
+		unmarshalled = reflect.New(t.Type()).Interface()
+		_ = json.Unmarshal(content, &unmarshalled)
+	}
+
+	_ = body.Close()
+	return unmarshalled
 }
 
 func (hse *HttpServerEndpoint) methodMatches(method string) bool {
