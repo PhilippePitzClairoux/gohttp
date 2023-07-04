@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	gohttperrors "github.com/PhilippePitzClairoux/go-http-server/gohttp/errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -38,53 +39,61 @@ type InternalDispatcher struct {
 }
 
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	var err error
+	var err error = gohttperrors.NewNotFoundError("Controller not found")
 
 	fmt.Println("Got a new request : ", r.RequestURI)
 	for _, endpoint := range id.Parent.Endpoints {
 		requestUri := CompileUri(r.RequestURI)
 
 		if endpoint.hseUri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
-			params, err := getValuesForMethodCall(endpoint.hseUri, requestUri)
-			if err != nil {
-				break
-			}
-
-			// handle request body and potentially add it to the function call
-			controller := endpoint.ParseRequestPayload(r)
-			answer := endpoint.function.Func.Call(
-				append([]reflect.Value{reflect.ValueOf(controller)},
-					params...,
-				),
-			)
-
-			byteBuffer.Reset()
-			err = byteEncoder.EncodeValue(answer[0])
-			if err != nil {
-				break
-			}
-
-			rw.WriteHeader(http.StatusOK)
-			if _, ok := rw.Write(byteBuffer.Bytes()); ok != nil {
-				fmt.Println("Could not write error to client : ", ok)
-			}
-
-			fmt.Println("Dispatched to endpoint : ", endpoint.name, "\n")
-
-			return
+			err = id.executeRequest(rw, r, endpoint, requestUri)
 		}
 	}
 
-	if err == nil {
-		err = errors.New("could not find any matching endpoint\n")
+	if err != nil {
+		id.handleErrors(rw, err)
+	}
+}
+
+func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
+	var statusCode int
+
+	if ise, ok := err.(gohttperrors.InternalServerError); ok {
+		statusCode = ise.StatusCode
+	} else if nfe, ok := err.(gohttperrors.NotFoundError); ok {
+		statusCode = nfe.StatusCode
+	} else {
+		statusCode = http.StatusNotImplemented
 	}
 
-	rw.WriteHeader(http.StatusNotFound)
-	if _, ok := rw.Write([]byte(err.Error())); ok != nil {
-		fmt.Println("Could not write error to client : ", ok)
+	rw.WriteHeader(statusCode)
+	fmt.Println("There was an error : ", err)
+}
+
+func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *HttpServerEndpoint, requestUri Uri) error {
+	params, err := getValuesForMethodCall(endpoint.hseUri, requestUri)
+	if err != nil {
+		return err
 	}
 
-	fmt.Println("Did not find any matching endpoint")
+	// handle request body and potentially add it to the function call
+	controller := endpoint.ParseRequestPayload(r)
+	answer := endpoint.function.Func.Call(
+		append([]reflect.Value{reflect.ValueOf(controller)},
+			params...,
+		),
+	)
+
+	byteBuffer.Reset()
+	err = byteEncoder.EncodeValue(answer[0])
+
+	rw.WriteHeader(http.StatusOK)
+	if _, err := rw.Write(byteBuffer.Bytes()); err != nil {
+		return err
+	}
+
+	fmt.Println("Dispatched to endpoint : ", endpoint.name, "\n")
+	return nil
 }
 
 func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) {
