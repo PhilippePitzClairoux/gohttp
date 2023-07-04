@@ -1,8 +1,9 @@
 package main
 
 import (
-	"go-http-server/gohttp"
-	"go-http-server/testpackage"
+	"github.com/PhilippePitzClairoux/go-http-server/gohttp"
+	"github.com/PhilippePitzClairoux/go-http-server/testpackage"
+	"log"
 )
 
 func main() {
@@ -13,5 +14,7 @@ func main() {
 		vals,
 	)
 
-	srv.ServeAndListen()
+	if err := srv.ServeAndListen(); err != nil {
+		log.Fatal("Cannot start HttpServer : ", err)
+	}
 }

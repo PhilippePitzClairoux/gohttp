@@ -23,7 +23,7 @@ type HttpController interface {
 type HttpServerEndpoint struct {
 	name          string
 	method        string
-	_uri          Uri
+	hseUri        Uri
 	function      reflect.Method
 	controllerRef HttpController
 }
@@ -32,20 +32,20 @@ var supportedMethods = []string{"Post", "Get", "Delete", "Put", "Patch"}
 var byteBuffer bytes.Buffer
 var byteEncoder = gob.NewEncoder(&byteBuffer)
 
-type internalDispatcher struct {
-	parent *HttpServer
+type InternalDispatcher struct {
+	Parent *HttpServer
 }
 
-func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error
 
 	fmt.Println("Got a new request : ", r.RequestURI)
 
-	for _, endpoint := range id.parent.httpServerEndpoints {
+	for _, endpoint := range id.Parent.Endpoints {
 		requestUri := CompileUri(r.RequestURI)
 
-		if endpoint._uri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
-			params, err := getValuesForMethodCall(endpoint._uri, requestUri)
+		if endpoint.hseUri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
+			params, err := getValuesForMethodCall(endpoint.hseUri, requestUri)
 			if err != nil {
 				break
 			}
@@ -146,8 +146,8 @@ func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error
 	}
 
 	return HttpServerEndpoint{
-		name: name,
-		_uri: CompileUri(name),
+		name:   name,
+		hseUri: CompileUri(name),
 	}, nil
 }
 

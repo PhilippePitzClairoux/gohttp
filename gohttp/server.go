@@ -16,31 +16,28 @@ type placeHolder struct {
 }
 
 type HttpServer struct {
-	server              *http.Server
-	httpServerEndpoints []*HttpServerEndpoint
+	Server    *http.Server
+	Endpoints []*HttpServerEndpoint
 }
 
 func NewHttpServer(port int) *HttpServer {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
-	//scan for endpoints
-	//register endpoints
 	server := &HttpServer{
-		httpServerEndpoints: []*HttpServerEndpoint{},
+		Endpoints: []*HttpServerEndpoint{},
 	}
 
-	server.server = &http.Server{
+	server.Server = &http.Server{
 		Addr:    addr,
-		Handler: &internalDispatcher{server},
+		Handler: &InternalDispatcher{server},
 	}
 
 	return server
 }
 
-func (hs *HttpServer) ServeAndListen() {
-	if err := hs.server.ListenAndServe(); err != nil {
-		fmt.Println("Cannot start HttpServer : ", err)
-	}
+func (hs *HttpServer) ServeAndListen() error {
+	fmt.Println("Starting server : ", hs.Server.Addr)
+	return hs.Server.ListenAndServe()
 }
 
 func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {
@@ -50,8 +47,8 @@ func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {
 }
 
 func (hs *HttpServer) RegisterEndpoint(endpoint *HttpServerEndpoint) {
-	endpoint._uri = CompileUri(endpoint.name)
-	hs.httpServerEndpoints = append(hs.httpServerEndpoints, endpoint)
+	endpoint.hseUri = CompileUri(endpoint.name)
+	hs.Endpoints = append(hs.Endpoints, endpoint)
 }
 
 func containsSupportedPlaceHolders(s string) bool {
