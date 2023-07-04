@@ -1,6 +1,7 @@
 package gohttp
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,9 +36,30 @@ func NewHttpServer(port int) *HttpServer {
 	return server
 }
 
-func (hs *HttpServer) ServeAndListen() error {
+func NewHttpsServer(port int, conf *tls.Config) *HttpServer {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	server := &HttpServer{
+		Endpoints: []*HttpServerEndpoint{},
+	}
+
+	server.Server = &http.Server{
+		Addr:      addr,
+		Handler:   &InternalDispatcher{server},
+		TLSConfig: conf,
+	}
+
+	return server
+}
+
+func (hs *HttpServer) ListenAndServe() error {
 	fmt.Println("Starting server : ", hs.Server.Addr)
 	return hs.Server.ListenAndServe()
+}
+
+func (hs *HttpServer) ListenAndServeTLS(cert string, key string) error {
+	fmt.Println("Starting server : ", hs.Server.Addr)
+	return hs.Server.ListenAndServeTLS(cert, key)
 }
 
 func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {

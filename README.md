@@ -9,7 +9,7 @@ how this works.
 ## How to write your first controller!
 In order to create a controller that can handle http calls,
 you must create a struct that defines functions.
-Those functions MUST start with one of the supported supported http method :
+Those functions MUST start with one of the supported http method :
 ```golang
 []string{"Post", "Get", "Delete", "Put", "Patch"}
 

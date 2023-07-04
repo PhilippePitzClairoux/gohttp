@@ -39,7 +39,7 @@ func main() {
 		vals,
 	)
 
-	if err := srv.ServeAndListen(); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal("Cannot start HttpServer : ", err)
 	}
 }

@@ -64,6 +64,11 @@ func (u *Uri) uriMatches(target *Uri) bool {
 }
 
 func cleanUri(s string) string {
+
+	if s == "/" {
+		return s
+	}
+
 	if s[0] == '/' {
 		s = s[1:]
 	}
