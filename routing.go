@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	goerrors "github.com/PhilippePitzClairoux/gohttp/errors"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -43,12 +44,16 @@ type InternalDispatcher struct {
 	Parent *HttpServer
 }
 
+func (id *InternalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) {
+	id.ServeHTTP(rw, r)
+}
+
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = goerrors.NewNotFoundError("Controller not found")
+	requestUri := CompileUri(r.RequestURI)
 
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
 	for _, endpoint := range id.Parent.Endpoints {
-		requestUri := CompileUri(r.RequestURI)
 
 		if endpoint.hseUri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
 			err = id.executeRequest(rw, r, endpoint, requestUri)
@@ -92,8 +97,11 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	byteBuffer.Reset()
 	err = byteEncoder.EncodeValue(answer[0])
 
+	rw.Header().Set("Content-Type", "text/json")
+
 	rw.WriteHeader(http.StatusOK)
-	if _, err := rw.Write(byteBuffer.Bytes()); err != nil {
+	jsonBytes, err := json.Marshal(answer[0].Interface()) //byteBuffer.Bytes())
+	if _, err = rw.Write(jsonBytes); err != nil {
 		return err
 	}
 
@@ -117,25 +125,18 @@ func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) 
 	return params, nil
 }
 
-func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) any {
-	t := reflect.ValueOf(hse.controllerRef)
+func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpController {
+	t := reflect.TypeOf(hse.controllerRef)
+	unmarshalled := reflect.New(t)
 	body := req.Body
-	content := make([]byte, 0)
-	var err error = nil
-	var unmarshalled any
+	content, err := io.ReadAll(body)
 
-	_, err = body.Read(content)
-	if err != nil {
-		// if there's an error during the parsing of the payload - return empty struct
-		fmt.Println("Could not parse body : ", err)
-		unmarshalled = hse.controllerRef
-	} else {
-		unmarshalled = reflect.New(t.Type()).Interface()
-		_ = json.Unmarshal(content, &unmarshalled)
+	if err == nil {
+		_ = json.Unmarshal(content, unmarshalled.Interface())
 	}
 
 	_ = body.Close()
-	return unmarshalled
+	return unmarshalled.Elem().Interface()
 }
 
 func (hse *HttpServerEndpoint) methodMatches(method string) bool {
@@ -178,7 +179,10 @@ func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error
 			return HttpServerEndpoint{}, err
 		}
 
-		name += fmt.Sprintf("/%s", val)
+		if name[len(name)-1] != '/' {
+			name += "/"
+		}
+		name += fmt.Sprintf("%s", val)
 	}
 
 	return HttpServerEndpoint{
