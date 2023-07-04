@@ -30,9 +30,14 @@ type HttpServerEndpoint struct {
 	controllerRef HttpController
 }
 
-var supportedMethods = []string{"Post", "Get", "Delete", "Put", "Patch"}
+var supportedMethods []string
 var byteBuffer bytes.Buffer
-var byteEncoder = gob.NewEncoder(&byteBuffer)
+var byteEncoder *gob.Encoder
+
+func init() {
+	supportedMethods = []string{"Post", "Get", "Delete", "Put", "Patch"}
+	byteEncoder = gob.NewEncoder(&byteBuffer)
+}
 
 type InternalDispatcher struct {
 	Parent *HttpServer
