@@ -22,21 +22,43 @@ func (TestHandler) GetMyEntity(str string, i int) string {
     return "get called!"
 }
 
-func (TestHandler) Post(str string, str2 string) string {
+func (TestHandler) PostMyEntity(str string, str2 string) string {
     return "post called!"
 }
 
-func (TestHandler) Delete(id int) string {
+func (TestHandler) DeleteMyEntity(id int) string {
     return "del called!"
 }
 
-func (TestHandler) Patch(str string, float float64) string {
+func (TestHandler) PatchMyEntity(str string, float float64) string {
     return "patch called"
 }
+
+...
+
+func main() {
+srv := gohttp.NewHttpServer(8080)
+vals, _ := gohttp.NewHttpServerEndpoint("/test", testpackage.TestHandler{})
+
+srv.RegisterEndpoints(
+vals,
+)
+
+srv.ServeAndListen()
+}
+
 ```
 The library will generate endpoints based off the baseUrl passed in `RegisterEndpoints`
 and the parameters of usable functions. So for example, `GetMyEntity` will be called
 when the GET request matches the following path : `/test/{string}/{int}`.
+
+The code abouve will generate the following endpoints :
+```
+GET    /test/{string}/{int}
+POST   /test/{string}/{string}
+DELETE /test/{int}
+PATCH  /test/{string}/{float}
+```
 
 ```bash
 wget localhost:8080/test/PARAM_STRING/32

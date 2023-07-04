@@ -39,6 +39,8 @@ type internalDispatcher struct {
 func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error
 
+	fmt.Println("Got a new request : ", r.RequestURI)
+
 	for _, endpoint := range id.parent.httpServerEndpoints {
 		requestUri := CompileUri(r.RequestURI)
 
@@ -65,13 +67,23 @@ func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 			if _, ok := rw.Write(byteBuffer.Bytes()); ok != nil {
 				fmt.Println("Could not write error to client : ", ok)
 			}
+
+			fmt.Println("Dispatched to endpoint : ", endpoint.name)
+
 			return
 		}
 	}
+
+	if err == nil {
+		err = errors.New("could not find any matching endpoint")
+	}
+
 	rw.WriteHeader(http.StatusNotFound)
 	if _, ok := rw.Write([]byte(err.Error())); ok != nil {
 		fmt.Println("Could not write error to client : ", ok)
 	}
+
+	fmt.Println("Did not find any matching endpoint")
 }
 
 func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) {
@@ -94,8 +106,8 @@ func (hse *HttpServerEndpoint) methodMatches(method string) bool {
 	return strings.ToLower(hse.method) == strings.ToLower(method)
 }
 
-func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]HttpServerEndpoint, error) {
-	hse := make([]HttpServerEndpoint, 0)
+func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]*HttpServerEndpoint, error) {
+	hse := make([]*HttpServerEndpoint, 0)
 	ctrlRef := reflect.TypeOf(controller)
 
 	for i := 0; i < ctrlRef.NumMethod(); i++ {
@@ -115,7 +127,7 @@ func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]HttpS
 			val.function = method
 			val.controllerRef = controller
 
-			hse = append(hse, val)
+			hse = append(hse, &val)
 		}
 	}
 

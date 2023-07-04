@@ -43,9 +43,9 @@ func (hs *HttpServer) ServeAndListen() {
 	}
 }
 
-func (hs *HttpServer) RegisterEndpoints(endpoints *[]HttpServerEndpoint) {
+func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {
 	for _, endpoint := range *endpoints {
-		hs.RegisterEndpoint(&endpoint)
+		hs.RegisterEndpoint(endpoint)
 	}
 }
 
