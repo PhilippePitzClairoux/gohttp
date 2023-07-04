@@ -37,20 +37,18 @@ type internalDispatcher struct {
 }
 
 func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	for _, endpoint := range id.parent.httpServerEndpoints {
-		if endpoint._uri.uriMatches(r.RequestURI) && endpoint.methodMatches(r.Method) {
-			//handle match or else 404
-			//TODO : call endpoint.method, create an array of params based off the request uri and potentially the body of the request
-			requestUri := CompileUri(r.RequestURI)
+	var err error
 
-			fmt.Println(requestUri)
-			fmt.Println(endpoint._uri)
+	for _, endpoint := range id.parent.httpServerEndpoints {
+		requestUri := CompileUri(r.RequestURI)
+
+		if endpoint._uri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
 			params, err := getValuesForMethodCall(endpoint._uri, requestUri)
 			if err != nil {
-				fmt.Println("Cannot parse request : ", err)
 				break
 			}
 
+			// handle request body and potentially add it to the function call
 			answer := endpoint.function.Func.Call(
 				append([]reflect.Value{reflect.ValueOf(endpoint.controllerRef)},
 					params...,
@@ -60,16 +58,20 @@ func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 			byteBuffer.Reset()
 			err = byteEncoder.EncodeValue(answer[0])
 			if err != nil {
-				fmt.Println("Cannot encode answer to bytes : ", err)
 				break
 			}
 
 			rw.WriteHeader(http.StatusOK)
-			rw.Write(byteBuffer.Bytes())
+			if _, ok := rw.Write(byteBuffer.Bytes()); ok != nil {
+				fmt.Println("Could not write error to client : ", ok)
+			}
 			return
 		}
 	}
 	rw.WriteHeader(http.StatusNotFound)
+	if _, ok := rw.Write([]byte(err.Error())); ok != nil {
+		fmt.Println("Could not write error to client : ", ok)
+	}
 }
 
 func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) {
@@ -92,7 +94,7 @@ func (hse *HttpServerEndpoint) methodMatches(method string) bool {
 	return strings.ToLower(hse.method) == strings.ToLower(method)
 }
 
-func NewHttpServerEndpoint(basePath string, controller HttpController) ([]HttpServerEndpoint, error) {
+func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]HttpServerEndpoint, error) {
 	hse := make([]HttpServerEndpoint, 0)
 	ctrlRef := reflect.TypeOf(controller)
 
@@ -100,10 +102,10 @@ func NewHttpServerEndpoint(basePath string, controller HttpController) ([]HttpSe
 		method := ctrlRef.Method(i)
 		supportedMethod := getSupportedMethod(method.Name)
 
-		// do nothing if the method basePath doesn't start with a supported method type
+		// do nothing if the method name doesn't start with a supportedMethod
 		if supportedMethod != "" {
 			//always skip the first method since it's the struct
-			val, err := NewEndpointFromType(basePath, method.Type)
+			val, err := newEndpointFromType(basePath, method.Type)
 			if err != nil {
 				return nil, err
 			}
@@ -117,10 +119,10 @@ func NewHttpServerEndpoint(basePath string, controller HttpController) ([]HttpSe
 		}
 	}
 
-	return hse, nil
+	return &hse, nil
 }
 
-func NewEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error) {
+func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error) {
 
 	for i := 1; i < p.NumIn(); i++ {
 		val, err := getPlaceholderFromType(p.In(i).Kind())

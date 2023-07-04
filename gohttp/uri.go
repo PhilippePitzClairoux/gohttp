@@ -30,25 +30,25 @@ func CompileUri(value string) Uri {
 	return _uri
 }
 
-func (u *Uri) uriMatches(uri string) bool {
+func (u *Uri) uriMatches(target *Uri) bool {
 	if u.hasTemplatedParams {
-		currentUri := CompileUri(uri)
+		//currentUri := CompileUri(uri)
 
-		if len(currentUri.params) != len(u.params) {
+		if len(target.params) != len(u.params) {
 			return false
 		}
 
-		for i, _ := range currentUri.params {
+		for i, _ := range target.params {
 			//here we basically ignore placeHolders since we can't really validate their value.
 			//we could validate the type eventually but for now this should be enough
 			//ex: /test/1234 should match /test/{int}   and /test/{int}/yep should not match /test/2/abc
 			if reflect.TypeOf(u.params[i]).Kind() == reflect.String {
-				if u.params[i] != currentUri.params[i] {
+				if u.params[i] != target.params[i] {
 					return false
 				}
 			} else {
 				// params only contains placeHolder or string - the casting is technically safe
-				valueToParse := currentUri.params[i].(string)
+				valueToParse := target.params[i].(string)
 				paramType := u.params[i].(placeHolder)._type
 				_, err := ParseValue(valueToParse, paramType)
 
@@ -60,7 +60,7 @@ func (u *Uri) uriMatches(uri string) bool {
 		return true
 	}
 
-	return u.fullUri == uri
+	return u.fullUri == target.fullUri
 }
 
 func cleanUri(s string) string {

@@ -39,7 +39,7 @@ and the parameters of usable functions. So for example, `GetMyEntity` will be ca
 when the GET request matches the following path : `/test/{string}/{int}`.
 
 ```bash
-wget localhost:8080/test/PARAM_STRING/32 
+wget localhost:8080/test/PARAM_STRING/32
 ```
 
 ## TODO LIST

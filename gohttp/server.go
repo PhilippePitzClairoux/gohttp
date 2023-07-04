@@ -17,7 +17,7 @@ type placeHolder struct {
 
 type HttpServer struct {
 	server              *http.Server
-	httpServerEndpoints []HttpServerEndpoint
+	httpServerEndpoints []*HttpServerEndpoint
 }
 
 func NewHttpServer(port int) *HttpServer {
@@ -26,7 +26,7 @@ func NewHttpServer(port int) *HttpServer {
 	//scan for endpoints
 	//register endpoints
 	server := &HttpServer{
-		httpServerEndpoints: []HttpServerEndpoint{},
+		httpServerEndpoints: []*HttpServerEndpoint{},
 	}
 
 	server.server = &http.Server{
@@ -38,18 +38,18 @@ func NewHttpServer(port int) *HttpServer {
 }
 
 func (hs *HttpServer) ServeAndListen() {
-	hs.server.ListenAndServe()
-}
-
-func (hs *HttpServer) RegisterEndpoints(endpoints []HttpServerEndpoint) {
-
-	for _, endpoint := range endpoints {
-		endpoint._uri = CompileUri(endpoint.name)
-		hs.httpServerEndpoints = append(hs.httpServerEndpoints, endpoint)
+	if err := hs.server.ListenAndServe(); err != nil {
+		fmt.Println("Cannot start HttpServer : ", err)
 	}
 }
 
-func (hs *HttpServer) RegisterEndpoint(endpoint HttpServerEndpoint) {
+func (hs *HttpServer) RegisterEndpoints(endpoints *[]HttpServerEndpoint) {
+	for _, endpoint := range *endpoints {
+		hs.RegisterEndpoint(&endpoint)
+	}
+}
+
+func (hs *HttpServer) RegisterEndpoint(endpoint *HttpServerEndpoint) {
 	endpoint._uri = CompileUri(endpoint.name)
 	hs.httpServerEndpoints = append(hs.httpServerEndpoints, endpoint)
 }
