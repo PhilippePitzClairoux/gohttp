@@ -2,7 +2,6 @@ package gohttp
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,15 +16,15 @@ type placeHolder struct {
 }
 
 type HttpServer struct {
-	Server    *http.Server
-	Endpoints []*HttpServerEndpoint
+	Server          *http.Server
+	sortedEndpoints map[string][]*HttpServerEndpoint
 }
 
 func NewHttpServer(port int) *HttpServer {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	server := &HttpServer{
-		Endpoints: []*HttpServerEndpoint{},
+		sortedEndpoints: make(map[string][]*HttpServerEndpoint),
 	}
 
 	server.Server = &http.Server{
@@ -40,7 +39,7 @@ func NewHttpsServer(port int, conf *tls.Config) *HttpServer {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	server := &HttpServer{
-		Endpoints: []*HttpServerEndpoint{},
+		sortedEndpoints: make(map[string][]*HttpServerEndpoint, 0),
 	}
 
 	server.Server = &http.Server{
@@ -70,7 +69,7 @@ func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {
 
 func (hs *HttpServer) RegisterEndpoint(endpoint *HttpServerEndpoint) {
 	endpoint.hseUri = CompileUri(endpoint.name)
-	hs.Endpoints = append(hs.Endpoints, endpoint)
+	hs.sortedEndpoints[endpoint.hseUri.baseUri] = append(hs.sortedEndpoints[endpoint.hseUri.baseUri], endpoint)
 }
 
 func containsSupportedPlaceHolders(s string) bool {
@@ -93,12 +92,13 @@ func ParseValue(value string, _type reflect.Kind) (any, error) {
 		val, err = strconv.Atoi(value)
 	case reflect.Float64:
 		val, err = strconv.ParseFloat(value, 64)
+	case reflect.Bool:
+		val, err = strconv.ParseBool(value)
 	case reflect.Struct:
-		err = json.Unmarshal([]byte(value), &val)
 	case reflect.Invalid:
+	default:
 		val = ""
-		err = errors.New("cannot parse a struct")
-
+		err = errors.New("invalid type")
 	}
 
 	return val, err

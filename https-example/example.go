@@ -13,7 +13,7 @@ type TestHandler struct {
 	Properties map[string]string `json:"properties,omitempty"`
 }
 
-func (r TestHandler) GetMyEntity(str string, i int) TestHandler {
+func (r TestHandler) GetMyEntity() TestHandler {
 	return r
 }
 

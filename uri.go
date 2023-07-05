@@ -7,16 +7,18 @@ import (
 
 type Uri struct {
 	fullUri            string
+	baseUri            string
 	params             []any
 	hasTemplatedParams bool
 }
 
 func CompileUri(value string) Uri {
-	value = cleanUri(value)
+	cleanValue := cleanUri(value)
 	_uri := Uri{fullUri: value}
 	templatedParams := false
+	values := strings.Split(cleanValue, "/")
 
-	for _, param := range strings.Split(value, "/") {
+	for _, param := range values {
 
 		if containsSupportedPlaceHolders(param) {
 			_uri.params = append(_uri.params, placeHolder{Placeholders[param], nil})
@@ -26,8 +28,21 @@ func CompileUri(value string) Uri {
 		}
 	}
 
+	_uri.baseUri = getBaseUri(values)
 	_uri.hasTemplatedParams = templatedParams
 	return _uri
+}
+
+func getBaseUri(uri []string) string {
+	output := "/"
+	for _, param := range uri {
+		if !containsSupportedPlaceHolders(param) {
+			output += param
+			break
+		}
+	}
+
+	return output
 }
 
 func (u *Uri) uriMatches(target *Uri) bool {
@@ -41,7 +56,7 @@ func (u *Uri) uriMatches(target *Uri) bool {
 		for i, _ := range target.params {
 			//here we basically ignore placeHolders since we can't really validate their value.
 			//we could validate the type eventually but for now this should be enough
-			//ex: /test/1234 should match /test/{int}   and /test/{int}/yep should not match /test/2/abc
+			//ex: /test/1234 should match /test/{int}   and /test/{int}/{string} should not match /test/2/{string}
 			if reflect.TypeOf(u.params[i]).Kind() == reflect.String {
 				if u.params[i] != target.params[i] {
 					return false
