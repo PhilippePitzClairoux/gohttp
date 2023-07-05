@@ -83,7 +83,7 @@ GET /{string}
 ```
 
 Note : base url always have precedence over templated values.
-Therefore `GET /test` will be used before `GET /{string}`
+Therefore `GET /test` will be used instead of `GET /{string}`
 if `{string}` has the value `test`
 
 ## TODO LIST
