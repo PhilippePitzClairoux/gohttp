@@ -37,14 +37,12 @@ type HttpServerEndpoint struct {
 var supportedMethods []string
 var byteBuffer bytes.Buffer
 var byteEncoder *gob.Encoder
-var HttpAuthControllerInterface goauth.HttpAuthController
 var TypeOfHttpAuthControllerInterface reflect.Type
 
 func init() {
 	supportedMethods = []string{"Post", "Get", "Delete", "Put", "Patch"}
 	byteEncoder = gob.NewEncoder(&byteBuffer)
-	HttpAuthControllerInterface = (goauth.HttpAuthController)(nil)
-	TypeOfHttpAuthControllerInterface = reflect.TypeOf(HttpAuthControllerInterface)
+	TypeOfHttpAuthControllerInterface = reflect.TypeOf(new(goauth.HttpAuthController)).Elem()
 }
 
 type InternalDispatcher struct {
