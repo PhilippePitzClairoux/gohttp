@@ -66,6 +66,26 @@ PATCH  /test/{string}/{float}
 wget localhost:8080/test/PARAM_STRING/32
 ```
 
+## Warnings
+There can be possible mapping conflicts.
+See following example :
+```
+POSSIBLE CONFLICTS :
+
+GET /test/2/{string}
+GET /test/{int}/{string}
+
+GET /test/{int}
+GET /test/2
+
+GET /test
+GET /{string}
+```
+
+Note : base url always have precedence over templated values.
+Therefore `GET /test` will be used before `GET /{string}`
+if `{string}` has the value `test`
+
 ## TODO LIST
 - Give access to request headers when calling endpoint method
 - ~~If the output of a method is a struct, parse it to JSON (same thing for body of a HTTP call)~~

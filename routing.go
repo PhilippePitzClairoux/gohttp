@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -18,6 +19,7 @@ var Placeholders = map[string]reflect.Kind{
 	"{int}":    reflect.Int,
 	"{float}":  reflect.Float64,
 	"{struct}": reflect.Struct,
+	"{bool}":   reflect.Bool,
 }
 
 type HttpController interface {
@@ -44,25 +46,60 @@ type InternalDispatcher struct {
 	Parent *HttpServer
 }
 
+func (id *InternalDispatcher) search(uri string) []*HttpServerEndpoint {
+	return id.Parent.sortedEndpoints[uri]
+}
+
 func (id *InternalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) {
 	id.ServeHTTP(rw, r)
 }
 
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = goerrors.NewNotFoundError("Controller not found")
-	requestUri := CompileUri(r.RequestURI)
+	//requestUriIt := strings.Split(requestUri.fullUri, "/")
 
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
-	for _, endpoint := range id.Parent.Endpoints {
 
-		if endpoint.hseUri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
-			err = id.executeRequest(rw, r, endpoint, requestUri)
+	if strings.Count(r.RequestURI, "/") == 1 {
+		endpoints := id.search(r.RequestURI)
+		if len(endpoints) > 0 {
+			// found the correct baseUri
+			err = id.findEndpointAndExecute(rw, r, endpoints)
+		} else if len(id.search("/")) > 0 {
+			err = id.findEndpointAndExecute(rw, r, id.search("/"))
+		}
+	} else {
+		// or else we search by removing parameters.
+		// If uri = /test/1234/hehe, we're gonna search for /test/1234/hehe, /test/1234, /test, /
+		reg, _ := regexp.Compile(`(/[\w-\\]+)`)
+		matches := reg.FindAllString(r.RequestURI, -1)
+
+		for index := len(matches) - 1; index >= 0; index-- {
+			endpoints := id.search(strings.Join(matches[:index], ""))
+
+			if len(endpoints) > 0 {
+				err = id.findEndpointAndExecute(rw, r, endpoints)
+				break
+			}
 		}
 	}
 
 	if err != nil {
 		id.handleErrors(rw, err)
 	}
+}
+
+func (id *InternalDispatcher) findEndpointAndExecute(rw http.ResponseWriter, r *http.Request, endpoints []*HttpServerEndpoint) error {
+	var err error
+	requestUri := CompileUri(r.RequestURI)
+
+	for _, endpoint := range endpoints {
+		if endpoint.hseUri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
+			err = id.executeRequest(rw, r, endpoint, requestUri)
+			break
+		}
+	}
+	return err
 }
 
 func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
