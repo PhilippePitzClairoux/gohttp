@@ -95,4 +95,6 @@ if `{string}` has the value `test`
 - Support multi return statements and handle errors
 - multi threading ???
 - document exported methods
-- optimize search for endpoint
+- ~~optimize search for endpoint~~
+- Add methods to handle authentication
+- Add methods to check permissions

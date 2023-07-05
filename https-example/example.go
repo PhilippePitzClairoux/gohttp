@@ -4,13 +4,15 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/PhilippePitzClairoux/gohttp"
+	"github.com/PhilippePitzClairoux/gohttp/goauthentication"
 	"log"
 )
 
 type TestHandler struct {
-	Name       string            `json:"name,omitempty"`
-	FamilyName string            `json:"familyName,omitempty"`
-	Properties map[string]string `json:"properties,omitempty"`
+	AuthController goauthentication.HttpBasicAuthController `json:"-"`
+	Name           string                                   `json:"name,omitempty"`
+	FamilyName     string                                   `json:"familyName,omitempty"`
+	Properties     map[string]string                        `json:"properties,omitempty"`
 }
 
 func (r TestHandler) GetMyEntity() TestHandler {
@@ -40,7 +42,13 @@ func main() {
 	}
 
 	srv := gohttp.NewHttpsServer(8080, tlsConf)
-	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{})
+	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{
+		AuthController: goauthentication.HttpBasicAuthController{
+			ValidateUser: func(username string, password string) bool {
+				return username == "admin" && password == "admin"
+			},
+		},
+	})
 	srv.RegisterEndpoints(
 		vals,
 	)
