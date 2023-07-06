@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -18,6 +19,7 @@ type placeHolder struct {
 type HttpServer struct {
 	Server          *http.Server
 	sortedEndpoints map[string][]*HttpServerEndpoint
+	Auth            goauth.HttpAuthController
 }
 
 func NewHttpServer(port int) *HttpServer {
@@ -59,6 +61,10 @@ func (hs *HttpServer) ListenAndServe() error {
 func (hs *HttpServer) ListenAndServeTLS(cert string, key string) error {
 	fmt.Println("Starting server : ", hs.Server.Addr)
 	return hs.Server.ListenAndServeTLS(cert, key)
+}
+
+func (hs *HttpServer) RegisterAuthController(controller goauth.HttpAuthController) {
+	hs.Auth = controller
 }
 
 func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {

@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	goauth "github.com/PhilippePitzClairoux/gohttp/goauthentication"
-	goerrors "github.com/PhilippePitzClairoux/gohttp/goerrors"
+	"github.com/PhilippePitzClairoux/gohttp/goauth"
+	"github.com/PhilippePitzClairoux/gohttp/goerrors"
 	"io"
 	"net/http"
 	"reflect"
@@ -37,12 +37,10 @@ type HttpServerEndpoint struct {
 var supportedMethods []string
 var byteBuffer bytes.Buffer
 var byteEncoder *gob.Encoder
-var TypeOfHttpAuthControllerInterface reflect.Type
 
 func init() {
 	supportedMethods = []string{"Post", "Get", "Delete", "Put", "Patch"}
 	byteEncoder = gob.NewEncoder(&byteBuffer)
-	TypeOfHttpAuthControllerInterface = reflect.TypeOf(new(goauth.HttpAuthController)).Elem()
 }
 
 type InternalDispatcher struct {
@@ -59,22 +57,29 @@ func (id *InternalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) 
 
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = goerrors.NewNotFoundError("Controller not found")
-	var endpoint *HttpServerEndpoint
+	//var endpoint *HttpServerEndpoint
 	requestUri := CompileUri(r.RequestURI)
 
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
-
-	endpoint, err = id.searchEndpoint(r, &requestUri)
+	endpoint, err := id.searchEndpoint(r, &requestUri)
 	if err != nil {
 		id.handleErrors(rw, err)
 		return
 	}
 
-	if controller := endpoint.getAuthController(); controller != nil {
-		err = goauth.AuthProxy(r, controller.(*goauth.HttpAuthController))
+	if id.Parent.Auth != nil {
+		err = goauth.AuthProxy(r, &id.Parent.Auth)
+		if err != nil {
+			goto HandleError
+		}
 	}
 
 	err = id.executeRequest(rw, r, endpoint, &requestUri)
+	if err != nil {
+		goto HandleError
+	}
+
+HandleError:
 	if err != nil {
 		id.handleErrors(rw, err)
 		return
@@ -129,6 +134,8 @@ func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 		statusCode = ise.StatusCode
 	} else if nfe, ok := err.(goerrors.NotFoundError); ok {
 		statusCode = nfe.StatusCode
+	} else if ue, ok := err.(goerrors.UnauthorizedError); ok {
+		statusCode = ue.StatusCode
 	} else {
 		statusCode = http.StatusNotImplemented
 	}
@@ -266,13 +273,14 @@ func getSupportedMethod(s string) string {
 	return ""
 }
 
-func (hse *HttpServerEndpoint) getAuthController() any {
+func (hse *HttpServerEndpoint) getAuthController() *goauth.HttpAuthController {
 	structFields := reflect.ValueOf(hse.controllerRef)
+	//TypeOfHttpAuthControllerInterface := reflect.TypeOf(&*new(goauth.HttpAuthController)).Elem()
 
 	for fieldIndex := 0; fieldIndex < structFields.NumField(); fieldIndex++ {
 		field := structFields.Field(fieldIndex)
-		if reflect.TypeOf(field.Interface()).Implements(TypeOfHttpAuthControllerInterface) {
-			return field.Interface()
+		if authController, ok := field.Interface().(*goauth.HttpAuthController); ok && field.Pointer() != 0 {
+			return authController
 		}
 	}
 	return nil

@@ -1,4 +1,4 @@
-package goauthentication
+package goauth
 
 import "net/http"
 
@@ -14,10 +14,10 @@ type DefaultBearerTokenController struct {
 	LoginUserMethod     LoginUser     `json:"-"`
 }
 
-func (dbtc *DefaultBearerTokenController) CreateSecurityContext(r *http.Request, header *http.Header) {
-	bearerToken := header.Get("Bearer")
-	username := header.Get("username")
-	password := header.Get("password")
+func (dbtc DefaultBearerTokenController) CreateSecurityContext(r *http.Request) {
+	bearerToken := r.Header.Get("Bearer")
+	username := r.Header.Get("username")
+	password := r.Header.Get("password")
 
 	if username != "" && password != "" {
 		dbtc.Token = dbtc.LoginUserMethod(username, password)
@@ -26,6 +26,6 @@ func (dbtc *DefaultBearerTokenController) CreateSecurityContext(r *http.Request,
 	}
 }
 
-func (dbtc *DefaultBearerTokenController) HasPermission() bool {
+func (dbtc DefaultBearerTokenController) HasPermission() bool {
 	return dbtc.Token != "" && dbtc.ValidateTokenMethod(dbtc.Token)
 }

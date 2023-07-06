@@ -4,15 +4,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/PhilippePitzClairoux/gohttp"
-	"github.com/PhilippePitzClairoux/gohttp/goauthentication"
+	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"log"
 )
 
 type TestHandler struct {
-	AuthController goauthentication.HttpBasicAuthController `json:"-"`
-	Name           string                                   `json:"name,omitempty"`
-	FamilyName     string                                   `json:"familyName,omitempty"`
-	Properties     map[string]string                        `json:"properties,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	FamilyName string            `json:"familyName,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 func (r TestHandler) GetMyEntity() TestHandler {
@@ -40,18 +39,19 @@ func main() {
 	tlsConf := &tls.Config{
 		InsecureSkipVerify: true,
 	}
+	auth := goauth.HttpBasicAuthController{
+		ValidateUser: func(username string, password string) bool {
+			return username == "admin" && password == "admin"
+		},
+	}
 
 	srv := gohttp.NewHttpsServer(8080, tlsConf)
-	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{
-		AuthController: goauthentication.HttpBasicAuthController{
-			ValidateUser: func(username string, password string) bool {
-				return username == "admin" && password == "admin"
-			},
-		},
-	})
+	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{})
 	srv.RegisterEndpoints(
 		vals,
 	)
+
+	srv.RegisterAuthController(&auth)
 
 	vals, _ = gohttp.NewHttpServerEndpoint("/", TestHandler{})
 	srv.RegisterEndpoints(

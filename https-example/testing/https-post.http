@@ -22,3 +22,4 @@ GET https://localhost:8080/wow
 
 ###
 GET https://localhost:8080/test/wowzer
+Authorization: Basic username=admin,password=admin
