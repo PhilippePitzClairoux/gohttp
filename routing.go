@@ -9,6 +9,7 @@ import (
 	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"github.com/PhilippePitzClairoux/gohttp/goerrors"
 	"io"
+	"log"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -31,7 +32,7 @@ type HttpServerEndpoint struct {
 	method        string
 	hseUri        Uri
 	function      reflect.Method
-	controllerRef HttpController
+	controllerRef *HttpController
 }
 
 var supportedMethods []string
@@ -153,6 +154,8 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 
 	// handle request body and potentially add it to the function call
 	controller := endpoint.ParseRequestPayload(r)
+	//TODO : add endpoint to controller if need be (ex: JwtTokenAuthController
+	AddControllerReference(&controller, *endpoint)
 	answer := endpoint.function.Func.Call(
 		append([]reflect.Value{reflect.ValueOf(controller)},
 			params...,
@@ -174,6 +177,50 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	return nil
 }
 
+func AddControllerReference(controller *HttpController, endpoint HttpServerEndpoint) {
+	controllerValue := reflect.Indirect(reflect.ValueOf(*controller))
+	endpointValue := reflect.Indirect(reflect.ValueOf(*endpoint.controllerRef))
+
+	// should double check we now have a struct (could still be anything)
+	if controllerValue.Kind() != reflect.Struct || endpointValue.Kind() != reflect.Struct {
+		log.Fatal("unexpected type")
+	}
+
+	controllerFieldTypes := GetFields(controllerValue)
+	endpointFieldTypes := GetFields(endpointValue)
+
+	fmt.Println(controllerFieldTypes)
+	fmt.Println(endpointFieldTypes)
+
+	for _, value := range controllerFieldTypes {
+		val := contains(value, &endpointFieldTypes)
+		if val != nil {
+			value.Set(*val)
+		}
+	}
+
+}
+
+func contains(value reflect.Value, values *[]reflect.Value) *reflect.Value {
+	for _, val := range *values {
+		if value.Type() == val.Type() {
+			return &val
+		}
+	}
+
+	return nil
+}
+
+func GetFields(value reflect.Value) []reflect.Value {
+	fields := make([]reflect.Value, 0)
+	for index := 0; index < value.NumField(); index++ {
+		field := value.Field(index)
+		fields = append(fields, field)
+	}
+
+	return fields
+}
+
 func getValuesForMethodCall(endpoint Uri, request *Uri) ([]reflect.Value, error) {
 	params := make([]reflect.Value, 0)
 	for i, val := range request.params {
@@ -191,7 +238,7 @@ func getValuesForMethodCall(endpoint Uri, request *Uri) ([]reflect.Value, error)
 }
 
 func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpController {
-	t := reflect.TypeOf(hse.controllerRef)
+	t := reflect.TypeOf(*hse.controllerRef)
 	unmarshalled := reflect.New(t)
 	body := req.Body
 	content, err := io.ReadAll(body)
@@ -199,7 +246,6 @@ func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpContro
 	if err == nil {
 		_ = json.Unmarshal(content, unmarshalled.Interface())
 	}
-
 	_ = body.Close()
 	return unmarshalled.Elem().Interface()
 }
@@ -227,7 +273,7 @@ func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]*Http
 			// set method
 			val.method = supportedMethod
 			val.function = method
-			val.controllerRef = controller
+			val.controllerRef = &controller
 
 			hse = append(hse, &val)
 		}
