@@ -22,4 +22,13 @@ GET https://localhost:8080/wow
 
 ###
 GET https://localhost:8080/test/wowzer
-Authorization: Basic username=admin,password=admin
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoic29tZWJvZHkiLCJhdWQiOlsic29tZWJvZHlfZWxzZSJdLCJleHAiOjE2ODg3NzMwOTUsIm5iZiI6MTY4ODY4NjY5NSwiaWF0IjoxNjg4Njg2Njk1LCJqdGkiOiIxIn0.7iqUlKZ36VX4viYbHlwaWIDZvZ-d03JisAo4BktKDIQ
+
+###
+POST https://localhost:8080/login
+Content-Type: text/json
+
+{
+  "username": "admin",
+  "password": "admin"
+}

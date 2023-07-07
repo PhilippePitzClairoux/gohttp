@@ -11,9 +11,10 @@ import (
 type HttpAuthController interface {
 	CreateSecurityContext(r *http.Request)
 	HasPermission() bool
+	PostLogin() interface{}
 }
 
-func AuthProxy(r *http.Request, controller *HttpAuthController) error {
+func AuthProxyMethod(r *http.Request, controller *HttpAuthController) error {
 	clonedAuthController := clone.Clone(controller).(*HttpAuthController)
 	value := reflect.ValueOf(clonedAuthController).Elem()
 	securityContextMethod := value.MethodByName("CreateSecurityContext")

@@ -59,16 +59,17 @@ func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	var err error = goerrors.NewNotFoundError("Controller not found")
 	//var endpoint *HttpServerEndpoint
 	requestUri := CompileUri(r.RequestURI)
-
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
+
 	endpoint, err := id.searchEndpoint(r, &requestUri)
 	if err != nil {
 		id.handleErrors(rw, err)
 		return
 	}
 
-	if id.Parent.Auth != nil {
-		err = goauth.AuthProxy(r, &id.Parent.Auth)
+	auth := id.Parent.AuthControllers[endpoint.hseUri.baseUri]
+	if auth != nil {
+		err = goauth.AuthProxyMethod(r, auth)
 		if err != nil {
 			goto HandleError
 		}
@@ -273,15 +274,15 @@ func getSupportedMethod(s string) string {
 	return ""
 }
 
-func (hse *HttpServerEndpoint) getAuthController() *goauth.HttpAuthController {
-	structFields := reflect.ValueOf(hse.controllerRef)
-	//TypeOfHttpAuthControllerInterface := reflect.TypeOf(&*new(goauth.HttpAuthController)).Elem()
-
-	for fieldIndex := 0; fieldIndex < structFields.NumField(); fieldIndex++ {
-		field := structFields.Field(fieldIndex)
-		if authController, ok := field.Interface().(*goauth.HttpAuthController); ok && field.Pointer() != 0 {
-			return authController
-		}
-	}
-	return nil
-}
+//func (hse *HttpServerEndpoint) getAuthController() goauth.HttpAuthController {
+//	structFields := reflect.ValueOf(hse.controllerRef)
+//	//TypeOfHttpAuthControllerInterface := reflect.TypeOf(&*new(goauth.HttpAuthController)).Elem()
+//
+//	for fieldIndex := 0; fieldIndex < structFields.NumField(); fieldIndex++ {
+//		field := structFields.Field(fieldIndex)
+//		if authController, ok := field.Interface().(goauth.HttpAuthController); ok && field.Pointer() != 0 {
+//			return authController
+//		}
+//	}
+//	return nil
+//}
