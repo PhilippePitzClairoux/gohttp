@@ -6,7 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	goerrors "github.com/PhilippePitzClairoux/gohttp/errors"
+	"github.com/PhilippePitzClairoux/gohttp/goauth"
+	"github.com/PhilippePitzClairoux/gohttp/goerrors"
 	"io"
 	"net/http"
 	"reflect"
@@ -30,7 +31,7 @@ type HttpServerEndpoint struct {
 	method        string
 	hseUri        Uri
 	function      reflect.Method
-	controllerRef HttpController
+	controllerRef *HttpController
 }
 
 var supportedMethods []string
@@ -56,17 +57,47 @@ func (id *InternalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) 
 
 func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = goerrors.NewNotFoundError("Controller not found")
-	//requestUriIt := strings.Split(requestUri.fullUri, "/")
-
+	//var endpoint *HttpServerEndpoint
+	requestUri := CompileUri(r.RequestURI)
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
+
+	endpoint, err := id.searchEndpoint(r, &requestUri)
+	if err != nil {
+		id.handleErrors(rw, err)
+		return
+	}
+
+	auth := id.Parent.AuthControllers[endpoint.hseUri.baseUri]
+	if auth != nil {
+		err = goauth.AuthProxyMethod(r, auth)
+		if err != nil {
+			goto HandleError
+		}
+	}
+
+	err = id.executeRequest(rw, r, endpoint, &requestUri)
+	if err != nil {
+		goto HandleError
+	}
+
+HandleError:
+	if err != nil {
+		id.handleErrors(rw, err)
+		return
+	}
+}
+
+func (id *InternalDispatcher) searchEndpoint(r *http.Request, requestUri *Uri) (*HttpServerEndpoint, error) {
+	var err error
+	var endpoint *HttpServerEndpoint
 
 	if strings.Count(r.RequestURI, "/") == 1 {
 		endpoints := id.search(r.RequestURI)
 		if len(endpoints) > 0 {
 			// found the correct baseUri
-			err = id.findEndpointAndExecute(rw, r, endpoints)
+			endpoint, err = id.findEndpoint(r, endpoints, requestUri)
 		} else if len(id.search("/")) > 0 {
-			err = id.findEndpointAndExecute(rw, r, id.search("/"))
+			endpoint, err = id.findEndpoint(r, id.search("/"), requestUri)
 		}
 	} else {
 		// or else we search by removing parameters.
@@ -78,37 +109,30 @@ func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 			endpoints := id.search(strings.Join(matches[:index], ""))
 
 			if len(endpoints) > 0 {
-				err = id.findEndpointAndExecute(rw, r, endpoints)
+				endpoint, err = id.findEndpoint(r, endpoints, requestUri)
 				break
 			}
 		}
 	}
-
-	if err != nil {
-		id.handleErrors(rw, err)
-	}
+	return endpoint, err
 }
 
-func (id *InternalDispatcher) findEndpointAndExecute(rw http.ResponseWriter, r *http.Request, endpoints []*HttpServerEndpoint) error {
-	var err error
-	requestUri := CompileUri(r.RequestURI)
+func (id *InternalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpServerEndpoint, requestUri *Uri) (*HttpServerEndpoint, error) {
 
 	for _, endpoint := range endpoints {
-		if endpoint.hseUri.uriMatches(&requestUri) && endpoint.methodMatches(r.Method) {
-			err = id.executeRequest(rw, r, endpoint, requestUri)
-			break
+		if endpoint.hseUri.uriMatches(requestUri) && endpoint.methodMatches(r.Method) {
+			//err = id.executeRequest(rw, r, endpoint, requestUri)
+			return endpoint, nil
 		}
 	}
-	return err
+	return nil, errors.New("no endpoint found")
 }
 
 func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 	var statusCode int
 
-	if ise, ok := err.(goerrors.InternalServerError); ok {
-		statusCode = ise.StatusCode
-	} else if nfe, ok := err.(goerrors.NotFoundError); ok {
-		statusCode = nfe.StatusCode
+	if ghe, ok := err.(goerrors.GenericHttpError); ok {
+		statusCode = ghe.GetStatusCode()
 	} else {
 		statusCode = http.StatusNotImplemented
 	}
@@ -117,7 +141,7 @@ func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 	fmt.Println("There was an error : ", err)
 }
 
-func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *HttpServerEndpoint, requestUri Uri) error {
+func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *HttpServerEndpoint, requestUri *Uri) error {
 	params, err := getValuesForMethodCall(endpoint.hseUri, requestUri)
 	if err != nil {
 		return err
@@ -125,6 +149,12 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 
 	// handle request body and potentially add it to the function call
 	controller := endpoint.ParseRequestPayload(r)
+	//TODO : add endpoint to controller if need be (ex: JwtTokenAuthController
+	err = AddControllerReference(&controller, *endpoint)
+	if err != nil {
+		return err
+	}
+
 	answer := endpoint.function.Func.Call(
 		append([]reflect.Value{reflect.ValueOf(controller)},
 			params...,
@@ -146,7 +176,49 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) {
+func AddControllerReference(controller *HttpController, endpoint HttpServerEndpoint) error {
+	controllerValue := reflect.Indirect(reflect.ValueOf(*controller))
+	endpointValue := reflect.Indirect(reflect.ValueOf(*endpoint.controllerRef))
+
+	// should double check we now have a struct (could still be anything)
+	if controllerValue.Kind() != reflect.Struct || endpointValue.Kind() != reflect.Struct {
+		return goerrors.NewBadRequestError("invalid type inside payload found")
+	}
+
+	controllerFieldTypes := GetFields(controllerValue)
+	endpointFieldTypes := GetFields(endpointValue)
+
+	for _, value := range controllerFieldTypes {
+		val := contains(value, &endpointFieldTypes)
+		if val != nil && value.CanSet() {
+			value.Set(*val)
+		}
+	}
+
+	return nil
+}
+
+func contains(value reflect.Value, values *[]reflect.Value) *reflect.Value {
+	for _, val := range *values {
+		if value.Type() == val.Type() {
+			return &val
+		}
+	}
+
+	return nil
+}
+
+func GetFields(value reflect.Value) []reflect.Value {
+	fields := make([]reflect.Value, 0)
+	for index := 0; index < value.NumField(); index++ {
+		field := value.Field(index)
+		fields = append(fields, field)
+	}
+
+	return fields
+}
+
+func getValuesForMethodCall(endpoint Uri, request *Uri) ([]reflect.Value, error) {
 	params := make([]reflect.Value, 0)
 	for i, val := range request.params {
 		if reflect.TypeOf(endpoint.params[i]).Kind() == reflect.Struct {
@@ -163,7 +235,7 @@ func getValuesForMethodCall(endpoint Uri, request Uri) ([]reflect.Value, error) 
 }
 
 func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpController {
-	t := reflect.TypeOf(hse.controllerRef)
+	t := reflect.TypeOf(*hse.controllerRef)
 	unmarshalled := reflect.New(t)
 	body := req.Body
 	content, err := io.ReadAll(body)
@@ -171,7 +243,6 @@ func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpContro
 	if err == nil {
 		_ = json.Unmarshal(content, unmarshalled.Interface())
 	}
-
 	_ = body.Close()
 	return unmarshalled.Elem().Interface()
 }
@@ -199,7 +270,7 @@ func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]*Http
 			// set method
 			val.method = supportedMethod
 			val.function = method
-			val.controllerRef = controller
+			val.controllerRef = &controller
 
 			hse = append(hse, &val)
 		}

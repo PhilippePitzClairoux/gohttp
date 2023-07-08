@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -18,6 +19,7 @@ type placeHolder struct {
 type HttpServer struct {
 	Server          *http.Server
 	sortedEndpoints map[string][]*HttpServerEndpoint
+	AuthControllers map[string]*goauth.HttpAuthController
 }
 
 func NewHttpServer(port int) *HttpServer {
@@ -25,6 +27,7 @@ func NewHttpServer(port int) *HttpServer {
 
 	server := &HttpServer{
 		sortedEndpoints: make(map[string][]*HttpServerEndpoint),
+		AuthControllers: make(map[string]*goauth.HttpAuthController, 0),
 	}
 
 	server.Server = &http.Server{
@@ -40,6 +43,7 @@ func NewHttpsServer(port int, conf *tls.Config) *HttpServer {
 
 	server := &HttpServer{
 		sortedEndpoints: make(map[string][]*HttpServerEndpoint, 0),
+		AuthControllers: make(map[string]*goauth.HttpAuthController, 0),
 	}
 
 	server.Server = &http.Server{
@@ -59,6 +63,20 @@ func (hs *HttpServer) ListenAndServe() error {
 func (hs *HttpServer) ListenAndServeTLS(cert string, key string) error {
 	fmt.Println("Starting server : ", hs.Server.Addr)
 	return hs.Server.ListenAndServeTLS(cert, key)
+}
+
+func (hs *HttpServer) RegisterAuthController(controller goauth.HttpAuthController, authPath string, basePaths ...string) error {
+	for _, basePath := range basePaths {
+		hs.AuthControllers[basePath] = &controller
+	}
+
+	endpoints, err := NewHttpServerEndpoint(authPath, controller)
+	if err == nil {
+		hs.RegisterEndpoints(endpoints)
+		return nil
+	}
+
+	return err
 }
 
 func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {

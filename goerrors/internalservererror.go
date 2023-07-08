@@ -11,6 +11,10 @@ func (ise InternalServerError) Error() string {
 	return ise.message
 }
 
+func (ise InternalServerError) GetStatusCode() int {
+	return ise.StatusCode
+}
+
 func NewInternalServerError(message string) InternalServerError {
 	return InternalServerError{
 		message:    message,
