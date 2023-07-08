@@ -190,7 +190,7 @@ func AddControllerReference(controller *HttpController, endpoint HttpServerEndpo
 
 	for _, value := range controllerFieldTypes {
 		val := contains(value, &endpointFieldTypes)
-		if val != nil {
+		if val != nil && value.CanSet() {
 			value.Set(*val)
 		}
 	}

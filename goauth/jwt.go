@@ -25,7 +25,7 @@ func (dbtc *JwtTokenAuthController) CreateSecurityContext(r *http.Request) {
 
 	if strings.Contains(auth, "Bearer ") {
 		dbtc.Token, err = jwt.Parse(extractTokenFromHeader(auth), dbtc.GetSecret)
-		dbtc.Error = err == nil
+		dbtc.Error = err != nil
 	}
 }
 

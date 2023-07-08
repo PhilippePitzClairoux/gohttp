@@ -2,9 +2,9 @@ package main
 
 import (
 	"crypto/tls"
-	"fmt"
 	"github.com/PhilippePitzClairoux/gohttp"
 	"github.com/PhilippePitzClairoux/gohttp/goauth"
+	"github.com/PhilippePitzClairoux/gohttp/goerrors"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
 	"time"
@@ -25,7 +25,6 @@ func (r TestHandler) GetsMyEntities(str string) []string {
 }
 
 func (r TestHandler) Post() TestHandler {
-	fmt.Println(r)
 	return r
 }
 
@@ -47,7 +46,16 @@ type AuthController struct {
 func (r *AuthController) PostLogin() interface{} {
 	var claims = r.GetClaims(r.Username, r.Password)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	str, _ := token.SignedString(r.GetSecret)
+	key, err := r.GetSecret(token)
+	if err != nil {
+		return goerrors.NewInternalServerError(err.Error())
+	}
+
+	str, err := token.SignedString(key)
+	if err != nil {
+		return goerrors.NewInternalServerError(err.Error())
+	}
+
 	return AuthController{
 		Token: str,
 	}
