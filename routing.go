@@ -9,7 +9,6 @@ import (
 	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"github.com/PhilippePitzClairoux/gohttp/goerrors"
 	"io"
-	"log"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -132,12 +131,8 @@ func (id *InternalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpSer
 func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 	var statusCode int
 
-	if ise, ok := err.(goerrors.InternalServerError); ok {
-		statusCode = ise.StatusCode
-	} else if nfe, ok := err.(goerrors.NotFoundError); ok {
-		statusCode = nfe.StatusCode
-	} else if ue, ok := err.(goerrors.UnauthorizedError); ok {
-		statusCode = ue.StatusCode
+	if ghe, ok := err.(goerrors.GenericHttpError); ok {
+		statusCode = ghe.GetStatusCode()
 	} else {
 		statusCode = http.StatusNotImplemented
 	}
@@ -155,7 +150,11 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	// handle request body and potentially add it to the function call
 	controller := endpoint.ParseRequestPayload(r)
 	//TODO : add endpoint to controller if need be (ex: JwtTokenAuthController
-	AddControllerReference(&controller, *endpoint)
+	err = AddControllerReference(&controller, *endpoint)
+	if err != nil {
+		return err
+	}
+
 	answer := endpoint.function.Func.Call(
 		append([]reflect.Value{reflect.ValueOf(controller)},
 			params...,
@@ -177,20 +176,17 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func AddControllerReference(controller *HttpController, endpoint HttpServerEndpoint) {
+func AddControllerReference(controller *HttpController, endpoint HttpServerEndpoint) error {
 	controllerValue := reflect.Indirect(reflect.ValueOf(*controller))
 	endpointValue := reflect.Indirect(reflect.ValueOf(*endpoint.controllerRef))
 
 	// should double check we now have a struct (could still be anything)
 	if controllerValue.Kind() != reflect.Struct || endpointValue.Kind() != reflect.Struct {
-		log.Fatal("unexpected type")
+		return goerrors.NewBadRequestError("invalid type inside payload found")
 	}
 
 	controllerFieldTypes := GetFields(controllerValue)
 	endpointFieldTypes := GetFields(endpointValue)
-
-	fmt.Println(controllerFieldTypes)
-	fmt.Println(endpointFieldTypes)
 
 	for _, value := range controllerFieldTypes {
 		val := contains(value, &endpointFieldTypes)
@@ -199,6 +195,7 @@ func AddControllerReference(controller *HttpController, endpoint HttpServerEndpo
 		}
 	}
 
+	return nil
 }
 
 func contains(value reflect.Value, values *[]reflect.Value) *reflect.Value {
@@ -319,16 +316,3 @@ func getSupportedMethod(s string) string {
 	}
 	return ""
 }
-
-//func (hse *HttpServerEndpoint) getAuthController() goauth.HttpAuthController {
-//	structFields := reflect.ValueOf(hse.controllerRef)
-//	//TypeOfHttpAuthControllerInterface := reflect.TypeOf(&*new(goauth.HttpAuthController)).Elem()
-//
-//	for fieldIndex := 0; fieldIndex < structFields.NumField(); fieldIndex++ {
-//		field := structFields.Field(fieldIndex)
-//		if authController, ok := field.Interface().(goauth.HttpAuthController); ok && field.Pointer() != 0 {
-//			return authController
-//		}
-//	}
-//	return nil
-//}

@@ -96,5 +96,5 @@ if `{string}` has the value `test`
 - multi threading ???
 - document exported methods
 - ~~optimize search for endpoint~~
-- Add methods to handle authentication
+- ~~Add methods to handle authentication~~
 - Add methods to check permissions
