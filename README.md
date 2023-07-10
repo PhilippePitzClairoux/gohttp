@@ -3,13 +3,12 @@ This library tries to make golang http servers
 "clean" and easily readable. There's still alot of
 things to implement but there is currently the bare minimum.
 
-Please refer to dummy.go and Example.go in order to learn
-how this works.
+Please refer to http-example and https-example for examples.
 
 ## How to write your first controller!
 In order to create a controller that can handle http calls,
 you must create a struct that defines functions.
-Those functions MUST start with one of the supported http method :
+These functions MUST start with one of the supported http method :
 ```golang
 []string{"Post", "Get", "Delete", "Put", "Patch"}
 
