@@ -89,7 +89,7 @@ func main() {
 		},
 	}
 
-	srv := gohttp.NewHttpsServer(8080, tlsConf)
+	srv := gohttp.NewTLSServer(8080, tlsConf)
 	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{})
 	srv.RegisterEndpoints(
 		vals,

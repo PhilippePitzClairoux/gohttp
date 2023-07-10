@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// JwtTokenAuthController represents the basic fields needed to performe Jwt authentication.
+// Error is set to true if there's an error parsing the token.
 type JwtTokenAuthController struct {
 	Token     *jwt.Token  `json:"-"`
 	Error     bool        `json:"-"`
@@ -14,11 +16,13 @@ type JwtTokenAuthController struct {
 	GetClaims LoginUser   `json:"-"`
 }
 
+// TODO : implement endpoint permissions based off this structure
 type JwtClaimsEndpointSecurity struct {
 	Permissions map[string]string `json:"-"`
 	jwt.RegisteredClaims
 }
 
+// CreateSecurityContext parses the request headers to get the bearer token.
 func (dbtc *JwtTokenAuthController) CreateSecurityContext(r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	var err error
@@ -26,9 +30,13 @@ func (dbtc *JwtTokenAuthController) CreateSecurityContext(r *http.Request) {
 	if strings.Contains(auth, "Bearer ") {
 		dbtc.Token, err = jwt.Parse(extractTokenFromHeader(auth), dbtc.GetSecret)
 		dbtc.Error = err != nil
+	} else {
+		dbtc.Error = true // no token found
 	}
 }
 
+// HasPermission checks if a token has been parsed, if the token is valid and
+// if there was an error during the parsing process
 func (dbtc *JwtTokenAuthController) HasPermission() bool {
 	return dbtc.Token != nil && dbtc.Token.Valid && !dbtc.Error
 }
@@ -41,6 +49,7 @@ func extractTokenFromHeader(header string) string {
 	return ""
 }
 
+// NewClaimBase returns a basic jwt.RegisteredClaims struct that can be inserted into your own custom claims if need be.
 func NewClaimBase(expiredAt *jwt.NumericDate, issuer, subject string, id string, audience []string) jwt.RegisteredClaims {
 	return jwt.RegisteredClaims{
 		ExpiresAt: expiredAt,
