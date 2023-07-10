@@ -8,7 +8,7 @@ import (
 // ValidateToken checks if the token is valid
 type ValidateToken func(token *jwt.Token) bool
 
-// LoginUser takes a username and a password and returns a token
+// LoginUser confirm user exists and return its claims
 type LoginUser func(username string, password string) jwt.RegisteredClaims
 
 // ExtractUsernamePassword extract username and password value for Authorization

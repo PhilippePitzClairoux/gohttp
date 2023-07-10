@@ -15,6 +15,7 @@ import (
 	"strings"
 )
 
+// Placeholders are the templated types you can use in your controllers
 var Placeholders = map[string]reflect.Kind{
 	"{string}": reflect.String,
 	"{int}":    reflect.Int,
@@ -23,17 +24,21 @@ var Placeholders = map[string]reflect.Kind{
 	"{bool}":   reflect.Bool,
 }
 
+// HttpController This is just a generic interface to handle HttpControllers
 type HttpController interface {
 }
 
+// HttpServerEndpoint defines the necessary fields that an endpoint must have in order to work.
+// users of this framework don't create them manually.
 type HttpServerEndpoint struct {
 	name          string
 	method        string
-	hseUri        Uri
+	hseUri        uri
 	function      reflect.Method
 	controllerRef *HttpController
 }
 
+// supportedMethods is a list of method names that functions must have in order to be registered as an endpoint
 var supportedMethods []string
 var byteBuffer bytes.Buffer
 var byteEncoder *gob.Encoder
@@ -43,22 +48,26 @@ func init() {
 	byteEncoder = gob.NewEncoder(&byteBuffer)
 }
 
-type InternalDispatcher struct {
+// internalDispatcher handles the server logic
+type internalDispatcher struct {
 	Parent *HttpServer
 }
 
-func (id *InternalDispatcher) search(uri string) []*HttpServerEndpoint {
+// search searches for an endpoint based off a URI
+func (id *internalDispatcher) search(uri string) []*HttpServerEndpoint {
 	return id.Parent.sortedEndpoints[uri]
 }
 
-func (id *InternalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) {
+// ServeTLS serves an HTTPS/TLS server (basically does the same thing ServeHttp would)
+func (id *internalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) {
 	id.ServeHTTP(rw, r)
 }
 
-func (id *InternalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+// ServeHTTP handles authentication, dispatching, controller execution and also error management.
+func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = goerrors.NewNotFoundError("Controller not found")
 	//var endpoint *HttpServerEndpoint
-	requestUri := CompileUri(r.RequestURI)
+	requestUri := compileUri(r.RequestURI)
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
 
 	endpoint, err := id.searchEndpoint(r, &requestUri)
@@ -87,7 +96,10 @@ HandleError:
 	}
 }
 
-func (id *InternalDispatcher) searchEndpoint(r *http.Request, requestUri *Uri) (*HttpServerEndpoint, error) {
+// searchEndpoint searches for the endpoint that matches the URI.
+// Implementation example :
+// If uri = /test/1234/hehe, we're going to search for /test/1234/hehe, /test/1234, /test, /
+func (id *internalDispatcher) searchEndpoint(r *http.Request, requestUri *uri) (*HttpServerEndpoint, error) {
 	var err error
 	var endpoint *HttpServerEndpoint
 
@@ -101,7 +113,6 @@ func (id *InternalDispatcher) searchEndpoint(r *http.Request, requestUri *Uri) (
 		}
 	} else {
 		// or else we search by removing parameters.
-		// If uri = /test/1234/hehe, we're gonna search for /test/1234/hehe, /test/1234, /test, /
 		reg, _ := regexp.Compile(`(/[\w-\\]+)`)
 		matches := reg.FindAllString(r.RequestURI, -1)
 
@@ -117,7 +128,8 @@ func (id *InternalDispatcher) searchEndpoint(r *http.Request, requestUri *Uri) (
 	return endpoint, err
 }
 
-func (id *InternalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpServerEndpoint, requestUri *Uri) (*HttpServerEndpoint, error) {
+// findEndpoint looks for the endpoint that matches the URI once the basePath has been found
+func (id *internalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpServerEndpoint, requestUri *uri) (*HttpServerEndpoint, error) {
 
 	for _, endpoint := range endpoints {
 		if endpoint.hseUri.uriMatches(requestUri) && endpoint.methodMatches(r.Method) {
@@ -128,7 +140,8 @@ func (id *InternalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpSer
 	return nil, errors.New("no endpoint found")
 }
 
-func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
+// handleErrors handles errors...
+func (id *internalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 	var statusCode int
 
 	if ghe, ok := err.(goerrors.GenericHttpError); ok {
@@ -141,16 +154,17 @@ func (id *InternalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 	fmt.Println("There was an error : ", err)
 }
 
-func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *HttpServerEndpoint, requestUri *Uri) error {
+// executeRequest takes an endpoint and call's the method related to it (keep in mind authentication has already been managed by then).
+// the body of the request is also parsed and passed as a parameter if it's present/valid
+func (id *internalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *HttpServerEndpoint, requestUri *uri) error {
 	params, err := getValuesForMethodCall(endpoint.hseUri, requestUri)
 	if err != nil {
 		return err
 	}
 
 	// handle request body and potentially add it to the function call
-	controller := endpoint.ParseRequestPayload(r)
-	//TODO : add endpoint to controller if need be (ex: JwtTokenAuthController
-	err = AddControllerReference(&controller, *endpoint)
+	controller := endpoint.parseRequestPayload(r)
+	err = addControllerReference(&controller, *endpoint)
 	if err != nil {
 		return err
 	}
@@ -176,7 +190,10 @@ func (id *InternalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func AddControllerReference(controller *HttpController, endpoint HttpServerEndpoint) error {
+// addControllerReference adds a reference to the endpoint inside the controller
+// this is done in order to add security context or other metadata from the request the controller
+// might need in order to do its job
+func addControllerReference(controller *HttpController, endpoint HttpServerEndpoint) error {
 	controllerValue := reflect.Indirect(reflect.ValueOf(*controller))
 	endpointValue := reflect.Indirect(reflect.ValueOf(*endpoint.controllerRef))
 
@@ -185,8 +202,8 @@ func AddControllerReference(controller *HttpController, endpoint HttpServerEndpo
 		return goerrors.NewBadRequestError("invalid type inside payload found")
 	}
 
-	controllerFieldTypes := GetFields(controllerValue)
-	endpointFieldTypes := GetFields(endpointValue)
+	controllerFieldTypes := getFields(controllerValue)
+	endpointFieldTypes := getFields(endpointValue)
 
 	for _, value := range controllerFieldTypes {
 		val := contains(value, &endpointFieldTypes)
@@ -198,6 +215,8 @@ func AddControllerReference(controller *HttpController, endpoint HttpServerEndpo
 	return nil
 }
 
+// contains checks if the type of value matches a type inside of values.
+// This method is strictly used to add a reference to an endpoint inside a controller instance.
 func contains(value reflect.Value, values *[]reflect.Value) *reflect.Value {
 	for _, val := range *values {
 		if value.Type() == val.Type() {
@@ -208,7 +227,8 @@ func contains(value reflect.Value, values *[]reflect.Value) *reflect.Value {
 	return nil
 }
 
-func GetFields(value reflect.Value) []reflect.Value {
+// getFields retuns a list of fields for a structure
+func getFields(value reflect.Value) []reflect.Value {
 	fields := make([]reflect.Value, 0)
 	for index := 0; index < value.NumField(); index++ {
 		field := value.Field(index)
@@ -218,11 +238,14 @@ func GetFields(value reflect.Value) []reflect.Value {
 	return fields
 }
 
-func getValuesForMethodCall(endpoint Uri, request *Uri) ([]reflect.Value, error) {
+// getValuesForMethodCall parses the request URI to match the parameters of the endpoint URI.
+// that way we can call the method related to the endpoint and pass the list that's return as
+// a parameter
+func getValuesForMethodCall(endpoint uri, request *uri) ([]reflect.Value, error) {
 	params := make([]reflect.Value, 0)
 	for i, val := range request.params {
 		if reflect.TypeOf(endpoint.params[i]).Kind() == reflect.Struct {
-			value, err := ParseValue(val.(string), endpoint.params[i].(placeHolder)._type)
+			value, err := parseValue(val.(string), endpoint.params[i].(placeHolder)._type)
 			if err != nil {
 				return nil, err
 			}
@@ -234,7 +257,10 @@ func getValuesForMethodCall(endpoint Uri, request *Uri) ([]reflect.Value, error)
 	return params, nil
 }
 
-func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpController {
+// parseRequestPayload parses the body of the http call and transforms it to a HttpServerEndpoint.
+// That way, when a user defines a new controller, they also define a payload that their endpoints will be able
+// to get when executing an http request
+func (hse *HttpServerEndpoint) parseRequestPayload(req *http.Request) HttpController {
 	t := reflect.TypeOf(*hse.controllerRef)
 	unmarshalled := reflect.New(t)
 	body := req.Body
@@ -247,10 +273,13 @@ func (hse *HttpServerEndpoint) ParseRequestPayload(req *http.Request) HttpContro
 	return unmarshalled.Elem().Interface()
 }
 
+// methodMatches checks if the HttpServerEndpoint method matches the one we just received
 func (hse *HttpServerEndpoint) methodMatches(method string) bool {
 	return strings.ToLower(hse.method) == strings.ToLower(method)
 }
 
+// NewHttpServerEndpoint creates a new endpoint based off a HttpController.
+// You can then register these controllers to a server
 func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]*HttpServerEndpoint, error) {
 	hse := make([]*HttpServerEndpoint, 0)
 	ctrlRef := reflect.TypeOf(controller)
@@ -279,6 +308,7 @@ func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]*Http
 	return &hse, nil
 }
 
+// newEndpointFromType creates an endpoint based off a controller
 func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error) {
 
 	for i := 1; i < p.NumIn(); i++ {
@@ -295,10 +325,11 @@ func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error
 
 	return HttpServerEndpoint{
 		name:   name,
-		hseUri: CompileUri(name),
+		hseUri: compileUri(name),
 	}, nil
 }
 
+// getPlaceholderFromType returns the matching placeholder string based off the placeholder type in parameter
 func getPlaceholderFromType(p reflect.Kind) (string, error) {
 	for key, val := range Placeholders {
 		if val == p {
@@ -308,6 +339,7 @@ func getPlaceholderFromType(p reflect.Kind) (string, error) {
 	return "", errors.New("invalid Kind used for placeholder")
 }
 
+// getSupportedMethod returns the method string if it's contained in supportedMethods
 func getSupportedMethod(s string) string {
 	for _, method := range supportedMethods {
 		if strings.Index(s, method) == 0 {

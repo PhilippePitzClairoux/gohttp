@@ -5,16 +5,18 @@ import (
 	"strings"
 )
 
-type Uri struct {
+// uri of a request
+type uri struct {
 	fullUri            string
 	baseUri            string
 	params             []any
 	hasTemplatedParams bool
 }
 
-func CompileUri(value string) Uri {
+// compileUri turns a string uri to a struct
+func compileUri(value string) uri {
 	cleanValue := cleanUri(value)
-	_uri := Uri{fullUri: value}
+	_uri := uri{fullUri: value}
 	templatedParams := false
 	values := strings.Split(cleanValue, "/")
 
@@ -45,9 +47,9 @@ func getBaseUri(uri []string) string {
 	return output
 }
 
-func (u *Uri) uriMatches(target *Uri) bool {
+func (u *uri) uriMatches(target *uri) bool {
 	if u.hasTemplatedParams {
-		//currentUri := CompileUri(uri)
+		//currentUri := compileUri(uri)
 
 		if len(target.params) != len(u.params) {
 			return false
@@ -65,7 +67,7 @@ func (u *Uri) uriMatches(target *Uri) bool {
 				// params only contains placeHolder or string - the casting is technically safe
 				valueToParse := target.params[i].(string)
 				paramType := u.params[i].(placeHolder)._type
-				_, err := ParseValue(valueToParse, paramType)
+				_, err := parseValue(valueToParse, paramType)
 
 				if err != nil {
 					return false

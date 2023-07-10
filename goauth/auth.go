@@ -8,12 +8,17 @@ import (
 	"reflect"
 )
 
+// HttpAuthController defines the methods that needs to be implemented in order to have a working
+// authentication.
 type HttpAuthController interface {
 	CreateSecurityContext(r *http.Request)
 	HasPermission() bool
 	PostLogin() interface{}
 }
 
+// AuthProxyMethod this is the method that's called by the routing section of the code in order to validate
+// that the user has the right's to call the endpoint (calls CreateSecurityContext and then HasPermission.
+// Returns an error if HasPermission returns false
 func AuthProxyMethod(r *http.Request, controller *HttpAuthController) error {
 	clonedAuthController := clone.Clone(controller).(*HttpAuthController)
 	value := reflect.ValueOf(clonedAuthController).Elem()
