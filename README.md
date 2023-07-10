@@ -6,7 +6,6 @@ things to implement but there is currently the bare minimum.
 Please refer to http-example and https-example for examples.
 
 ## Project features
-- Create a bunch of endpoints using a single struct
 - Aggregate endpoints for an entity in a single struct
 - Create one file/struct per entity
 - No more huge main methods defining endpoints
