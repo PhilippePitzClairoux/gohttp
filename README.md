@@ -3,13 +3,20 @@ This library tries to make golang http servers
 "clean" and easily readable. There's still alot of
 things to implement but there is currently the bare minimum.
 
-Please refer to dummy.go and Example.go in order to learn
-how this works.
+Please refer to http-example and https-example for examples.
+
+## Project features
+- Aggregate endpoints for an entity in a single struct
+- Create one file/struct per entity
+- No more huge main methods defining endpoints
+- Automatic dispatching to methods when a request is made
+- parametrized endpoints
+- authentication (BasicAuth & JWT only for now)
 
 ## How to write your first controller!
 In order to create a controller that can handle http calls,
 you must create a struct that defines functions.
-Those functions MUST start with one of the supported http method :
+These functions MUST start with one of the supported http method :
 ```golang
 []string{"Post", "Get", "Delete", "Put", "Patch"}
 
@@ -39,14 +46,14 @@ func (r TestHandler) PatchMyEntity(str string, float float64) string {
 ...
 
 func main() {
-srv := gohttp.NewHttpServer(8080)
-vals, _ := gohttp.NewHttpServerEndpoint("/test", testpackage.TestHandler{})
+    srv := gohttp.NewHttpServer(8080)
+    vals, _ := gohttp.NewHttpServerEndpoint("/test", testpackage.TestHandler{})
+    
+    srv.RegisterEndpoints(
+        vals,
+    )
 
-srv.RegisterEndpoints(
-vals,
-)
-
-srv.ServeAndListen()
+    srv.ServeAndListen()
 }
 
 ```

@@ -186,7 +186,7 @@ func (id *internalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 		return err
 	}
 
-	fmt.Println("Dispatched to endpoint : ", endpoint.name, "\n")
+	fmt.Printf("Dispatched to endpoint : %s\n\n", endpoint.name)
 	return nil
 }
 
