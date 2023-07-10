@@ -5,6 +5,15 @@ things to implement but there is currently the bare minimum.
 
 Please refer to http-example and https-example for examples.
 
+## Project features
+- Create a bunch of endpoints using a single struct
+- Aggregate endpoints for an entity in a single struct
+- Create one file/struct per entity
+- No more huge main methods defining endpoints
+- Automatic dispatching to methods when a request is made
+- parametrized endpoints
+- authentication (BasicAuth & JWT only for now)
+
 ## How to write your first controller!
 In order to create a controller that can handle http calls,
 you must create a struct that defines functions.
@@ -38,14 +47,14 @@ func (r TestHandler) PatchMyEntity(str string, float float64) string {
 ...
 
 func main() {
-srv := gohttp.NewHttpServer(8080)
-vals, _ := gohttp.NewHttpServerEndpoint("/test", testpackage.TestHandler{})
+    srv := gohttp.NewHttpServer(8080)
+    vals, _ := gohttp.NewHttpServerEndpoint("/test", testpackage.TestHandler{})
+    
+    srv.RegisterEndpoints(
+        vals,
+    )
 
-srv.RegisterEndpoints(
-vals,
-)
-
-srv.ServeAndListen()
+    srv.ServeAndListen()
 }
 
 ```
