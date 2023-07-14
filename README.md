@@ -14,7 +14,7 @@ Please refer to http-example and https-example for examples.
 - authentication (BasicAuth & JWT only for now)
 
 ## Server structure
-
+```
 HttpServer
  |
  | - -> endpoints
@@ -33,7 +33,7 @@ MyCustomStruct
  | - -> Post(id string) **
  |
  | - -> Delete(id string) ***
-
+```
 
 ## How to write your first controller!
 In order to create a controller that can handle http calls,
