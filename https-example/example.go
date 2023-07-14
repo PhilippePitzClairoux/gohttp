@@ -7,6 +7,7 @@ import (
 	"github.com/PhilippePitzClairoux/gohttp/goerrors"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
+	"os"
 	"time"
 )
 
@@ -78,18 +79,20 @@ func GetSecret(token *jwt.Token) (interface{}, error) {
 func main() {
 	tlsConf := &tls.Config{
 		InsecureSkipVerify: true,
+		Certificates:       []tls.Certificate{goauth.CreateCertificate()},
+		KeyLogWriter:       os.Stdout,
 	}
 
 	auth := &AuthController{
 		JwtTokenAuthController: &goauth.JwtTokenAuthController{
-			Error:     false,
+			HasError:  false,
 			GetSecret: GetSecret,
 			GetClaims: GetClaims,
 			Token:     jwt.New(jwt.SigningMethodHS512),
 		},
 	}
 
-	srv := gohttp.NewTLSServer(8080, tlsConf)
+	srv := gohttp.NewTLSServer(":https", tlsConf)
 	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{})
 	srv.RegisterEndpoints(
 		vals,
@@ -101,7 +104,8 @@ func main() {
 	)
 
 	_ = srv.RegisterAuthController(auth, "/login", "/", "/test")
-	if err := srv.ListenAndServeTLS("./localhost.crt", "./localhost.key"); err != nil {
+
+	if err := srv.ListenAndServeTLS("", ""); err != nil {
 		log.Fatal("Cannot start HttpServer : ", err)
 	}
 }
