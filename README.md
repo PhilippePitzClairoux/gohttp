@@ -13,10 +13,33 @@ Please refer to http-example and https-example for examples.
 - parametrized endpoints
 - authentication (BasicAuth & JWT only for now)
 
+## Server structure
+
+HttpServer
+ |
+ | - -> endpoints
+           |
+           | - -> basePath (ex: /test)
+                     |
+                     | - -> Get() *
+                     | - -> id
+                            | Post(id) **
+                            | Delete(id) ***
+
+MyCustomStruct
+ |
+ | - -> Get() *
+ |
+ | - -> Post(id string) **
+ |
+ | - -> Delete(id string) ***
+
+
 ## How to write your first controller!
 In order to create a controller that can handle http calls,
 you must create a struct that defines functions.
 These functions MUST start with one of the supported http method :
+
 ```golang
 []string{"Post", "Get", "Delete", "Put", "Patch"}
 
@@ -57,7 +80,7 @@ func main() {
 }
 
 ```
-The library will generate endpoints based off the baseUrl passed in `RegisterEndpoints`
+The library will generate endpoints based off the baseUrl passed in `RegisterEndpoints`/`RegisterEndpoint`
 and the parameters of usable functions. So for example, `GetMyEntity` will be called
 when the GET request matches the following path : `/test/{string}/{int}`.
 
@@ -100,8 +123,8 @@ if `{string}` has the value `test`
 - ~~Optimize code (use more pointers instead of copying most data)~~
 - ~~Reduce cognitive complexity of functions~~
 - Support multi return statements and handle errors
-- multi threading ???
-- document exported methods
+- ~~multi threading ???~~
+- ~~document exported methods~~
 - ~~optimize search for endpoint~~
 - ~~Add methods to handle authentication~~
 - Add methods to check permissions

@@ -8,10 +8,10 @@ import (
 )
 
 // JwtTokenAuthController represents the basic fields needed to performe Jwt authentication.
-// Error is set to true if there's an error parsing the token.
+// HasError is set to true if there's an error parsing the token.
 type JwtTokenAuthController struct {
 	Token     *jwt.Token  `json:"-"`
-	Error     bool        `json:"-"`
+	HasError  bool        `json:"-"`
 	GetSecret jwt.Keyfunc `json:"-"`
 	GetClaims LoginUser   `json:"-"`
 }
@@ -29,16 +29,16 @@ func (dbtc *JwtTokenAuthController) CreateSecurityContext(r *http.Request) {
 
 	if strings.Contains(auth, "Bearer ") {
 		dbtc.Token, err = jwt.Parse(extractTokenFromHeader(auth), dbtc.GetSecret)
-		dbtc.Error = err != nil
+		dbtc.HasError = err != nil
 	} else {
-		dbtc.Error = true // no token found
+		dbtc.HasError = true // no token found
 	}
 }
 
 // HasPermission checks if a token has been parsed, if the token is valid and
 // if there was an error during the parsing process
 func (dbtc *JwtTokenAuthController) HasPermission() bool {
-	return dbtc.Token != nil && dbtc.Token.Valid && !dbtc.Error
+	return dbtc.Token != nil && dbtc.Token.Valid && !dbtc.HasError
 }
 
 func extractTokenFromHeader(header string) string {

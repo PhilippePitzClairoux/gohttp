@@ -42,8 +42,7 @@ func NewHttpServer(port int) *HttpServer {
 }
 
 // NewTLSServer creates a new http(s) server with a TLS configuration.
-func NewTLSServer(port int, conf *tls.Config) *HttpServer {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+func NewTLSServer(addr string, conf *tls.Config) *HttpServer {
 
 	server := &HttpServer{
 		sortedEndpoints: make(map[string][]*HttpServerEndpoint, 0),

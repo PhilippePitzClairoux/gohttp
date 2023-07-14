@@ -1,4 +1,4 @@
-POST https://localhost:8080/
+POST https://localhost/
 Content-Type: text/json
 Accept: text/json
 #Accept-Encoding: gzip, deflate
@@ -14,11 +14,11 @@ Accept-Language: en-US,en;q=0.9,es;q=0.8
 }
 
 ###
-GET https://localhost:8080/test
+GET https://localhost/test
 Authorization: Basic username=admin,password=admin
 
 ###
-POST https://localhost:8080/test
+POST https://localhost/test
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1YiI6Im1lIiwiYXVkIjpbInQiLCJ0MiIsInQzIl0sImV4cCI6MTY4ODkxNTYyNSwibmJmIjoxNjg4ODI5MjI1LCJpYXQiOjE2ODg4MjkyMjUsImp0aSI6IjEifQ.987cbkoN6F6ZgxomfBG6WtbVCChRLYd961MIF9XAVwE
 
 {
@@ -31,11 +31,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1Y
 }
 
 ###
-GET https://localhost:8080/test/wowzer
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1YiI6Im1lIiwiYXVkIjpbInQiLCJ0MiIsInQzIl0sImV4cCI6MTY4ODkxNTYyNSwibmJmIjoxNjg4ODI5MjI1LCJpYXQiOjE2ODg4MjkyMjUsImp0aSI6IjEifQ.987cbkoN6F6ZgxomfBG6WtbVCChRLYd961MIF9XAVwE
+GET https://localhost/test/wowzer
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1YiI6Im1lIiwiYXVkIjpbInQiLCJ0MiIsInQzIl0sImV4cCI6MTY4OTE3NzgzNywibmJmIjoxNjg5MDkxNDM3LCJpYXQiOjE2ODkwOTE0MzcsImp0aSI6IjEifQ.Zww1AXZWUmnjK2ecZMviaQk-5AV1zs5ZzEM8A8sPKNk
 
 ###
-POST https://localhost:8080/login
+POST https://go-api.localhost/login
 Content-Type: text/json
 
 {
