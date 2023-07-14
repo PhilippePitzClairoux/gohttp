@@ -93,19 +93,15 @@ func main() {
 	}
 
 	srv := gohttp.NewTLSServer(":https", tlsConf)
-	vals, _ := gohttp.NewHttpServerEndpoint("/test", TestHandler{})
-	srv.RegisterEndpoints(
-		vals,
-	)
-
-	vals, _ = gohttp.NewHttpServerEndpoint("/", TestHandler{})
-	srv.RegisterEndpoints(
-		vals,
-	)
-
-	_ = srv.RegisterAuthController(auth, "/login", "/", "/test")
-
-	if err := srv.ListenAndServeTLS("", ""); err != nil {
-		log.Fatal("Cannot start HttpServer : ", err)
+	err := srv.RegisterAuthenticationMiddleware(auth)
+	if err != nil {
+		log.Fatalf("Cannot register new endpoints : %s", err)
 	}
+
+	err = srv.RegisterEndpoints("/test", TestHandler{})
+	if err != nil {
+		log.Fatalf("Cannot register new endpoints : %s", err)
+	}
+
+	log.Fatal(srv.ListenAndServeTLS("", ""))
 }
