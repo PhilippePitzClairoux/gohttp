@@ -65,13 +65,14 @@ func GetSecret(token *jwt.Token) (interface{}, error) {
 }
 
 func GenerateSignedJWT(request *http.Request) (string, error) {
+	secret, _ := GetSecret(nil)
 	return jwt.NewWithClaims(jwt.SigningMethodHS512, goauth.NewClaimBase(
 		jwt.NewNumericDate(time.Now().Add(time.Hour*24)),
 		"me",
 		"me",
 		"100",
 		[]string{"t", "t1", "t2", "t3"},
-	)).SignedString(GetSecret)
+	)).SignedString(secret)
 }
 
 func main() {
@@ -89,7 +90,7 @@ func main() {
 		Token:     jwt.New(jwt.SigningMethodHS512),
 	}, PerformLogin, GenerateSignedJWT)
 
-	err := srv.RegisterEndpoints("/test", TestHandler{})
+	err := srv.RegisterEndpoints("/test/", TestHandler{})
 	if err != nil {
 		log.Fatalf("Cannot register new endpoints : %s", err)
 	}

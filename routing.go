@@ -40,7 +40,7 @@ type controllerEndpoint struct {
 type controllerEndpoints struct {
 	endpoints     *[]*controllerEndpoint
 	controllerRef *HttpController
-	auth          *goauth.AuthenticationMiddleware
+	serverRef     *HttpServer
 }
 
 type HttpController interface{}
@@ -73,7 +73,7 @@ func (ces controllerEndpoints) ServeHTTP(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	auth := ces.auth
+	auth := ces.serverRef.Auth
 	if auth != nil {
 		err = goauth.AuthProxyMethod(r, auth)
 		if err != nil {

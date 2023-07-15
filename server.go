@@ -2,6 +2,8 @@ package gohttp
 
 import (
 	"crypto/tls"
+	"encoding/json"
+	"fmt"
 	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"net/http"
 	"reflect"
@@ -63,6 +65,7 @@ func (hs *HttpServer) RegisterEndpoints(basePath string, controller HttpControll
 	hs.mux.Handle(basePath, controllerEndpoints{
 		endpoints:     &hse,
 		controllerRef: &controller,
+		serverRef:     hs,
 	})
 
 	return nil
@@ -72,6 +75,7 @@ func (hs *HttpServer) RegisterAuthenticationMiddleware(t goauth.AuthenticationMi
 	hs.Auth = &t
 	hs.mux.HandleFunc("/login", func(writer http.ResponseWriter, request *http.Request) {
 		var statusCode = http.StatusForbidden
+		fmt.Printf("Got a request : %s %s\n", request.Method, request.RequestURI)
 		if logFunc(request) {
 			token, err := createJwt(request)
 			if err != nil {
@@ -79,13 +83,16 @@ func (hs *HttpServer) RegisterAuthenticationMiddleware(t goauth.AuthenticationMi
 				goto Error
 			}
 
-			_, err = writer.Write([]byte(token))
+			data, err := json.Marshal(map[string]string{"token": token})
+			if err != nil {
+				goto Error
+			}
+
+			_, err = writer.Write(data)
 			if err != nil {
 				statusCode = http.StatusForbidden
 				goto Error
 			}
-
-			writer.WriteHeader(http.StatusOK)
 			return
 		}
 	Error:
