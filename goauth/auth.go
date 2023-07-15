@@ -8,8 +8,8 @@ import (
 	"reflect"
 )
 
-// AuthenticationMiddleware defines the methods that needs to be implemented in order to have a working
-// authentication.
+// AuthenticationMiddleware defines the methods that needs to be implemented in order to have user validation
+// every time we get a request
 type AuthenticationMiddleware interface {
 	CreateSecurityContext(r *http.Request)
 	HasPermission() bool

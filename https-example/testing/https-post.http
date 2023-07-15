@@ -39,6 +39,6 @@ POST https://go-api.localhost/login
 Content-Type: text/json
 
 {
-  "username": "admin",
-  "password": "admin"
+  "username" : "admin",
+  "password" : "admin"
 }

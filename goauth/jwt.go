@@ -7,23 +7,19 @@ import (
 	"time"
 )
 
-// JwtTokenAuthController represents the basic fields needed to performe Jwt authentication.
+// JwtMiddleware represents the basic fields needed to performe Jwt authentication.
 // HasError is set to true if there's an error parsing the token.
-type JwtTokenAuthController struct {
-	Token     *jwt.Token  `json:"-"`
-	HasError  bool        `json:"-"`
-	GetSecret jwt.Keyfunc `json:"-"`
-	GetClaims LoginUser   `json:"-"`
+type JwtMiddleware struct {
+	Token     *jwt.Token     `json:"-"`
+	HasError  bool           `json:"-"`
+	GetSecret jwt.Keyfunc    `json:"-"`
+	GetClaims GenerateClaims `json:"-"`
 }
 
-// TODO : implement endpoint permissions based off this structure
-type JwtClaimsEndpointSecurity struct {
-	Permissions map[string]string `json:"-"`
-	jwt.RegisteredClaims
-}
+type GenerateSignedJWT func(r *http.Request) (string, error)
 
 // CreateSecurityContext parses the request headers to get the bearer token.
-func (dbtc *JwtTokenAuthController) CreateSecurityContext(r *http.Request) {
+func (dbtc *JwtMiddleware) CreateSecurityContext(r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	var err error
 
@@ -37,7 +33,7 @@ func (dbtc *JwtTokenAuthController) CreateSecurityContext(r *http.Request) {
 
 // HasPermission checks if a token has been parsed, if the token is valid and
 // if there was an error during the parsing process
-func (dbtc *JwtTokenAuthController) HasPermission() bool {
+func (dbtc *JwtMiddleware) HasPermission() bool {
 	return dbtc.Token != nil && dbtc.Token.Valid && !dbtc.HasError
 }
 

@@ -63,13 +63,32 @@ func (hs *HttpServer) RegisterEndpoints(basePath string, controller HttpControll
 	hs.mux.Handle(basePath, controllerEndpoints{
 		endpoints:     &hse,
 		controllerRef: &controller,
-		auth:          hs.Auth,
 	})
 
 	return nil
 }
 
-func (hs *HttpServer) RegisterAuthenticationMiddleware(t goauth.AuthenticationMiddleware) error {
+func (hs *HttpServer) RegisterAuthenticationMiddleware(t goauth.AuthenticationMiddleware, logFunc goauth.LoginUser, createJwt goauth.GenerateSignedJWT) {
 	hs.Auth = &t
-	return hs.RegisterEndpoints("/login", t)
+	hs.mux.HandleFunc("/login", func(writer http.ResponseWriter, request *http.Request) {
+		var statusCode = http.StatusForbidden
+		if logFunc(request) {
+			token, err := createJwt(request)
+			if err != nil {
+				statusCode = http.StatusInternalServerError
+				goto Error
+			}
+
+			_, err = writer.Write([]byte(token))
+			if err != nil {
+				statusCode = http.StatusForbidden
+				goto Error
+			}
+
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+	Error:
+		writer.WriteHeader(statusCode)
+	})
 }
