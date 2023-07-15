@@ -11,9 +11,15 @@ import (
 	"io"
 	"net/http"
 	"reflect"
-	"regexp"
+	"strconv"
 	"strings"
 )
+
+// placeHolder defines a struct that's used by endpoint URI's to know the types of templated params and help with the parsing
+type placeHolder struct {
+	_type reflect.Kind
+	value any
+}
 
 // Placeholders are the templated types you can use in your controllers
 var Placeholders = map[string]reflect.Kind{
@@ -24,19 +30,20 @@ var Placeholders = map[string]reflect.Kind{
 	"{bool}":   reflect.Bool,
 }
 
-// HttpController This is just a generic interface to handle HttpControllers
-type HttpController interface {
+type controllerEndpoint struct {
+	name     string
+	method   string
+	hseUri   uri
+	function reflect.Method
 }
 
-// HttpServerEndpoint defines the necessary fields that an endpoint must have in order to work.
-// users of this framework don't create them manually.
-type HttpServerEndpoint struct {
-	name          string
-	method        string
-	hseUri        uri
-	function      reflect.Method
+type controllerEndpoints struct {
+	endpoints     *[]*controllerEndpoint
 	controllerRef *HttpController
+	serverRef     *HttpServer
 }
+
+type HttpController interface{}
 
 // supportedMethods is a list of method names that functions must have in order to be registered as an endpoint
 var supportedMethods []string
@@ -48,35 +55,25 @@ func init() {
 	byteEncoder = gob.NewEncoder(&byteBuffer)
 }
 
-// internalDispatcher handles the server logic
-type internalDispatcher struct {
-	Parent *HttpServer
-}
-
-// search searches for an endpoint based off a URI
-func (id *internalDispatcher) search(uri string) []*HttpServerEndpoint {
-	return id.Parent.sortedEndpoints[uri]
-}
-
 // ServeTLS serves an HTTPS/TLS server (basically does the same thing ServeHttp would)
-func (id *internalDispatcher) ServeTLS(rw http.ResponseWriter, r *http.Request) {
-	id.ServeHTTP(rw, r)
+func (ces controllerEndpoints) ServeTLS(rw http.ResponseWriter, r *http.Request) {
+	ces.ServeHTTP(rw, r)
 }
 
 // ServeHTTP handles authentication, dispatching, controller execution and also error management.
-func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (ces controllerEndpoints) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error = goerrors.NewNotFoundError("Controller not found")
-	//var endpoint *HttpServerEndpoint
+	//var endpoint *controllerEndpoint
 	requestUri := compileUri(r.RequestURI)
 	fmt.Printf("Got a new request : %s %s\n", r.Method, r.RequestURI)
 
-	endpoint, err := id.searchEndpoint(r, &requestUri)
+	endpoint, err := ces.searchEndpoint(r, &requestUri)
 	if err != nil {
-		id.handleErrors(rw, err)
+		ces.handleErrors(rw, err)
 		return
 	}
 
-	auth := id.Parent.AuthControllers[endpoint.hseUri.baseUri]
+	auth := ces.serverRef.Auth
 	if auth != nil {
 		err = goauth.AuthProxyMethod(r, auth)
 		if err != nil {
@@ -84,14 +81,14 @@ func (id *internalDispatcher) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	err = id.executeRequest(rw, r, endpoint, &requestUri)
+	err = ces.executeRequest(rw, r, endpoint, &requestUri)
 	if err != nil {
 		goto HandleError
 	}
 
 HandleError:
 	if err != nil {
-		id.handleErrors(rw, err)
+		ces.handleErrors(rw, err)
 		return
 	}
 }
@@ -99,37 +96,19 @@ HandleError:
 // searchEndpoint searches for the endpoint that matches the URI.
 // Implementation example :
 // If uri = /test/1234/hehe, we're going to search for /test/1234/hehe, /test/1234, /test, /
-func (id *internalDispatcher) searchEndpoint(r *http.Request, requestUri *uri) (*HttpServerEndpoint, error) {
-	var err error
-	var endpoint *HttpServerEndpoint
+func (ces controllerEndpoints) searchEndpoint(r *http.Request, requestUri *uri) (*controllerEndpoint, error) {
 
-	if strings.Count(r.RequestURI, "/") == 1 {
-		endpoints := id.search(r.RequestURI)
-		if len(endpoints) > 0 {
-			// found the correct baseUri
-			endpoint, err = id.findEndpoint(r, endpoints, requestUri)
-		} else if len(id.search("/")) > 0 {
-			endpoint, err = id.findEndpoint(r, id.search("/"), requestUri)
-		}
-	} else {
-		// or else we search by removing parameters.
-		reg, _ := regexp.Compile(`(/[\w-\\]+)`)
-		matches := reg.FindAllString(r.RequestURI, -1)
-
-		for index := len(matches) - 1; index >= 0; index-- {
-			endpoints := id.search(strings.Join(matches[:index], ""))
-
-			if len(endpoints) > 0 {
-				endpoint, err = id.findEndpoint(r, endpoints, requestUri)
-				break
-			}
+	for _, endpoint := range *ces.endpoints {
+		if endpoint.hseUri.uriMatches(requestUri) {
+			return endpoint, nil
 		}
 	}
-	return endpoint, err
+
+	return nil, goerrors.NewNotFoundError("no matching endpoint found")
 }
 
 // findEndpoint looks for the endpoint that matches the URI once the basePath has been found
-func (id *internalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpServerEndpoint, requestUri *uri) (*HttpServerEndpoint, error) {
+func (ces controllerEndpoints) findEndpoint(r *http.Request, endpoints []*controllerEndpoint, requestUri *uri) (*controllerEndpoint, error) {
 
 	for _, endpoint := range endpoints {
 		if endpoint.hseUri.uriMatches(requestUri) && endpoint.methodMatches(r.Method) {
@@ -141,7 +120,7 @@ func (id *internalDispatcher) findEndpoint(r *http.Request, endpoints []*HttpSer
 }
 
 // handleErrors handles errors...
-func (id *internalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
+func (ces controllerEndpoints) handleErrors(rw http.ResponseWriter, err error) {
 	var statusCode int
 
 	if ghe, ok := err.(goerrors.GenericHttpError); ok {
@@ -156,15 +135,15 @@ func (id *internalDispatcher) handleErrors(rw http.ResponseWriter, err error) {
 
 // executeRequest takes an endpoint and call's the method related to it (keep in mind authentication has already been managed by then).
 // the body of the request is also parsed and passed as a parameter if it's present/valid
-func (id *internalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *HttpServerEndpoint, requestUri *uri) error {
+func (ces controllerEndpoints) executeRequest(rw http.ResponseWriter, r *http.Request, endpoint *controllerEndpoint, requestUri *uri) error {
 	params, err := getValuesForMethodCall(endpoint.hseUri, requestUri)
 	if err != nil {
 		return err
 	}
 
 	// handle request body and potentially add it to the function call
-	controller := endpoint.parseRequestPayload(r)
-	err = addControllerReference(&controller, *endpoint)
+	controller := endpoint.parseRequestPayload(r, *ces.controllerRef)
+	//err = addControllerReference(&controller, *endpoint)
 	if err != nil {
 		return err
 	}
@@ -187,31 +166,6 @@ func (id *internalDispatcher) executeRequest(rw http.ResponseWriter, r *http.Req
 	}
 
 	fmt.Printf("Dispatched to endpoint : %s\n\n", endpoint.name)
-	return nil
-}
-
-// addControllerReference adds a reference to the endpoint inside the controller
-// this is done in order to add security context or other metadata from the request the controller
-// might need in order to do its job
-func addControllerReference(controller *HttpController, endpoint HttpServerEndpoint) error {
-	controllerValue := reflect.Indirect(reflect.ValueOf(*controller))
-	endpointValue := reflect.Indirect(reflect.ValueOf(*endpoint.controllerRef))
-
-	// should double check we now have a struct (could still be anything)
-	if controllerValue.Kind() != reflect.Struct || endpointValue.Kind() != reflect.Struct {
-		return goerrors.NewBadRequestError("invalid type inside payload found")
-	}
-
-	controllerFieldTypes := getFields(controllerValue)
-	endpointFieldTypes := getFields(endpointValue)
-
-	for _, value := range controllerFieldTypes {
-		val := contains(value, &endpointFieldTypes)
-		if val != nil && value.CanSet() {
-			value.Set(*val)
-		}
-	}
-
 	return nil
 }
 
@@ -257,11 +211,11 @@ func getValuesForMethodCall(endpoint uri, request *uri) ([]reflect.Value, error)
 	return params, nil
 }
 
-// parseRequestPayload parses the body of the http call and transforms it to a HttpServerEndpoint.
+// parseRequestPayload parses the body of the http call and transforms it to a controllerEndpoint.
 // That way, when a user defines a new controller, they also define a payload that their endpoints will be able
 // to get when executing an http request
-func (hse *HttpServerEndpoint) parseRequestPayload(req *http.Request) HttpController {
-	t := reflect.TypeOf(*hse.controllerRef)
+func (hse *controllerEndpoint) parseRequestPayload(req *http.Request, bodyRef HttpController) interface{} {
+	t := reflect.TypeOf(bodyRef)
 	unmarshalled := reflect.New(t)
 	body := req.Body
 	content, err := io.ReadAll(body)
@@ -273,48 +227,18 @@ func (hse *HttpServerEndpoint) parseRequestPayload(req *http.Request) HttpContro
 	return unmarshalled.Elem().Interface()
 }
 
-// methodMatches checks if the HttpServerEndpoint method matches the one we just received
-func (hse *HttpServerEndpoint) methodMatches(method string) bool {
+// methodMatches checks if the controllerEndpoint method matches the one we just received
+func (hse *controllerEndpoint) methodMatches(method string) bool {
 	return strings.ToLower(hse.method) == strings.ToLower(method)
 }
 
-// NewHttpServerEndpoint creates a new endpoint based off a HttpController.
-// You can then register these controllers to a server
-func NewHttpServerEndpoint(basePath string, controller HttpController) (*[]*HttpServerEndpoint, error) {
-	hse := make([]*HttpServerEndpoint, 0)
-	ctrlRef := reflect.TypeOf(controller)
-
-	for i := 0; i < ctrlRef.NumMethod(); i++ {
-		method := ctrlRef.Method(i)
-		supportedMethod := getSupportedMethod(method.Name)
-
-		// do nothing if the method name doesn't start with a supportedMethod
-		if supportedMethod != "" {
-			//always skip the first method since it's the struct
-			val, err := newEndpointFromType(basePath, method.Type)
-			if err != nil {
-				return nil, err
-			}
-
-			// set method
-			val.method = supportedMethod
-			val.function = method
-			val.controllerRef = &controller
-
-			hse = append(hse, &val)
-		}
-	}
-
-	return &hse, nil
-}
-
 // newEndpointFromType creates an endpoint based off a controller
-func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error) {
+func newEndpointFromType(name string, p reflect.Type) (controllerEndpoint, error) {
 
 	for i := 1; i < p.NumIn(); i++ {
 		val, err := getPlaceholderFromType(p.In(i).Kind())
 		if err != nil {
-			return HttpServerEndpoint{}, err
+			return controllerEndpoint{}, err
 		}
 
 		if name[len(name)-1] != '/' {
@@ -323,7 +247,7 @@ func newEndpointFromType(name string, p reflect.Type) (HttpServerEndpoint, error
 		name += fmt.Sprintf("%s", val)
 	}
 
-	return HttpServerEndpoint{
+	return controllerEndpoint{
 		name:   name,
 		hseUri: compileUri(name),
 	}, nil
@@ -347,4 +271,38 @@ func getSupportedMethod(s string) string {
 		}
 	}
 	return ""
+}
+
+// containsSupportedPlaceHolders check's if a parameter is a templated value
+func containsSupportedPlaceHolders(s string) bool {
+	for key, _ := range Placeholders {
+		if strings.Contains(s, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// parseValue parses the string value to the specified _type
+func parseValue(value string, _type reflect.Kind) (any, error) {
+	var val any
+	var err error
+
+	switch _type {
+	case reflect.String:
+		val = value
+	case reflect.Int:
+		val, err = strconv.Atoi(value)
+	case reflect.Float64:
+		val, err = strconv.ParseFloat(value, 64)
+	case reflect.Bool:
+		val, err = strconv.ParseBool(value)
+	case reflect.Struct:
+	case reflect.Invalid:
+	default:
+		val = ""
+		err = errors.New("invalid type")
+	}
+
+	return val, err
 }

@@ -2,133 +2,100 @@ package gohttp
 
 import (
 	"crypto/tls"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"github.com/PhilippePitzClairoux/gohttp/goauth"
 	"net/http"
 	"reflect"
-	"strconv"
-	"strings"
 )
 
-// placeHolder defines a struct that's used by endpoint URI's to know the types of templated params and help with the parsing
-type placeHolder struct {
-	_type reflect.Kind
-	value any
-}
-
-// HttpServer defines various fields that can be used by your server
 type HttpServer struct {
-	Server          *http.Server
-	sortedEndpoints map[string][]*HttpServerEndpoint
-	AuthControllers map[string]*goauth.HttpAuthController
+	*http.Server
+	mux  *http.ServeMux
+	Auth *goauth.AuthenticationMiddleware
 }
 
 // NewHttpServer creates a new server that can then be configured
-func NewHttpServer(port int) *HttpServer {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-
-	server := &HttpServer{
-		sortedEndpoints: make(map[string][]*HttpServerEndpoint),
-		AuthControllers: make(map[string]*goauth.HttpAuthController, 0),
+func NewHttpServer(addr string) *HttpServer {
+	httpServer := &HttpServer{
+		Server: &http.Server{
+			Addr: addr,
+		},
+		mux: http.NewServeMux(),
 	}
 
-	server.Server = &http.Server{
-		Addr:    addr,
-		Handler: &internalDispatcher{server},
-	}
-
-	return server
+	httpServer.Handler = httpServer.mux
+	return httpServer
 }
 
 // NewTLSServer creates a new http(s) server with a TLS configuration.
 func NewTLSServer(addr string, conf *tls.Config) *HttpServer {
-
-	server := &HttpServer{
-		sortedEndpoints: make(map[string][]*HttpServerEndpoint, 0),
-		AuthControllers: make(map[string]*goauth.HttpAuthController, 0),
-	}
-
-	server.Server = &http.Server{
-		Addr:      addr,
-		Handler:   &internalDispatcher{server},
-		TLSConfig: conf,
-	}
+	server := NewHttpServer(addr)
+	server.TLSConfig = conf
 
 	return server
 }
 
-// ListenAndServe starts the HTTP server
-func (hs *HttpServer) ListenAndServe() error {
-	fmt.Println("Starting server : ", hs.Server.Addr)
-	return hs.Server.ListenAndServe()
-}
+// RegisterEndpoints creates a new endpoint based off a HttpController.
+// You can then register these controllers to a server
+func (hs *HttpServer) RegisterEndpoints(basePath string, controller HttpController) error {
+	hse := make([]*controllerEndpoint, 0)
+	ctrlRef := reflect.TypeOf(controller)
 
-// ListenAndServeTLS starts the TLS (https) server
-func (hs *HttpServer) ListenAndServeTLS(cert string, key string) error {
-	fmt.Println("Starting server : ", hs.Server.Addr)
-	return hs.Server.ListenAndServeTLS(cert, key)
-}
+	for i := 0; i < ctrlRef.NumMethod(); i++ {
+		method := ctrlRef.Method(i)
+		supportedMethod := getSupportedMethod(method.Name)
 
-// RegisterAuthController adds a specific goauth.HttpAuthController to the current server. This controller will be used
-// for every basePath you pass to the method.
-func (hs *HttpServer) RegisterAuthController(controller goauth.HttpAuthController, authPath string, basePaths ...string) error {
-	for _, basePath := range basePaths {
-		hs.AuthControllers[basePath] = &controller
-	}
+		// do nothing if the method name doesn't start with a supportedMethod
+		if supportedMethod != "" {
+			//always skip the first method since it's the struct
+			val, err := newEndpointFromType(basePath, method.Type)
+			if err != nil {
+				return err
+			}
 
-	endpoints, err := NewHttpServerEndpoint(authPath, controller)
-	if err == nil {
-		hs.RegisterEndpoints(endpoints)
-		return nil
-	}
+			// set method
+			val.method = supportedMethod
+			val.function = method
 
-	return err
-}
-
-// RegisterEndpoints registers many endpoints to a server
-func (hs *HttpServer) RegisterEndpoints(endpoints *[]*HttpServerEndpoint) {
-	for _, endpoint := range *endpoints {
-		hs.RegisterEndpoint(endpoint)
-	}
-}
-
-// RegisterEndpoint registers a single endpoint to a server
-func (hs *HttpServer) RegisterEndpoint(endpoint *HttpServerEndpoint) {
-	endpoint.hseUri = compileUri(endpoint.name)
-	hs.sortedEndpoints[endpoint.hseUri.baseUri] = append(hs.sortedEndpoints[endpoint.hseUri.baseUri], endpoint)
-}
-
-// containsSupportedPlaceHolders check's if a parameter is a templated value
-func containsSupportedPlaceHolders(s string) bool {
-	for key, _ := range Placeholders {
-		if strings.Contains(s, key) {
-			return true
+			hse = append(hse, &val)
 		}
 	}
-	return false
+
+	hs.mux.Handle(basePath, controllerEndpoints{
+		endpoints:     &hse,
+		controllerRef: &controller,
+		serverRef:     hs,
+	})
+
+	return nil
 }
 
-// parseValue parses the string value to the specified _type
-func parseValue(value string, _type reflect.Kind) (any, error) {
-	var val any
-	var err error
+func (hs *HttpServer) RegisterAuthenticationMiddleware(t goauth.AuthenticationMiddleware, logFunc goauth.LoginUser, createJwt goauth.GenerateSignedJWT) {
+	hs.Auth = &t
+	hs.mux.HandleFunc("/login", func(writer http.ResponseWriter, request *http.Request) {
+		var statusCode = http.StatusForbidden
+		fmt.Printf("Got a request : %s %s\n", request.Method, request.RequestURI)
+		if logFunc(request) {
+			token, err := createJwt(request)
+			if err != nil {
+				statusCode = http.StatusInternalServerError
+				goto Error
+			}
 
-	switch _type {
-	case reflect.String:
-		val = value
-	case reflect.Int:
-		val, err = strconv.Atoi(value)
-	case reflect.Float64:
-		val, err = strconv.ParseFloat(value, 64)
-	case reflect.Bool:
-		val, err = strconv.ParseBool(value)
-	case reflect.Struct:
-	case reflect.Invalid:
-	default:
-		val = ""
-		err = errors.New("invalid type")
-	}
+			data, err := json.Marshal(map[string]string{"token": token})
+			if err != nil {
+				goto Error
+			}
 
-	return val, err
+			_, err = writer.Write(data)
+			if err != nil {
+				statusCode = http.StatusForbidden
+				goto Error
+			}
+			return
+		}
+	Error:
+		writer.WriteHeader(statusCode)
+	})
 }

@@ -32,13 +32,13 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1Y
 
 ###
 GET https://localhost/test/wowzer
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1YiI6Im1lIiwiYXVkIjpbInQiLCJ0MiIsInQzIl0sImV4cCI6MTY4OTE3NzgzNywibmJmIjoxNjg5MDkxNDM3LCJpYXQiOjE2ODkwOTE0MzcsImp0aSI6IjEifQ.Zww1AXZWUmnjK2ecZMviaQk-5AV1zs5ZzEM8A8sPKNk
+Authorization: Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtZSIsInN1YiI6Im1lIiwiYXVkIjpbInQiLCJ0MSIsInQyIiwidDMiXSwiZXhwIjoxNjg5NTE5MDA1LCJuYmYiOjE2ODk0MzI2MDYsImlhdCI6MTY4OTQzMjYwNiwianRpIjoiMTAwIn0.2Iu--j0sYMSQB6sOoOg-5o8942unre_wWWwpCGvwHaQq-OEm1zy24yMvd4gv7zPheanzRPeqvcPRiqWDnVHfVQ
 
 ###
 POST https://go-api.localhost/login
 Content-Type: text/json
 
 {
-  "username": "admin",
-  "password": "admin"
+  "username" : "admin",
+  "password" : "admin"
 }

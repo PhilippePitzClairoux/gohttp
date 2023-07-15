@@ -8,19 +8,18 @@ import (
 	"reflect"
 )
 
-// HttpAuthController defines the methods that needs to be implemented in order to have a working
-// authentication.
-type HttpAuthController interface {
+// AuthenticationMiddleware defines the methods that needs to be implemented in order to have user validation
+// every time we get a request
+type AuthenticationMiddleware interface {
 	CreateSecurityContext(r *http.Request)
 	HasPermission() bool
-	PostLogin() interface{}
 }
 
 // AuthProxyMethod this is the method that's called by the routing section of the code in order to validate
 // that the user has the right's to call the endpoint (calls CreateSecurityContext and then HasPermission.
 // Returns an error if HasPermission returns false
-func AuthProxyMethod(r *http.Request, controller *HttpAuthController) error {
-	clonedAuthController := clone.Clone(controller).(*HttpAuthController)
+func AuthProxyMethod(r *http.Request, controller *AuthenticationMiddleware) error {
+	clonedAuthController := clone.Clone(controller).(*AuthenticationMiddleware)
 	value := reflect.ValueOf(clonedAuthController).Elem()
 	securityContextMethod := value.MethodByName("CreateSecurityContext")
 	hasPermissionMethod := value.MethodByName("HasPermission")
