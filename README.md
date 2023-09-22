@@ -5,6 +5,10 @@ things to implement but there is currently the bare minimum.
 
 Please refer to http-example and https-example for examples.
 
+## Project is useless
+creator didn't know the ecosystem of golang enough when starting this project.
+Was fun to do though
+
 ## Project features
 - Aggregate endpoints for an entity in a single struct
 - Create one file/struct per entity
